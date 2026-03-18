@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createClient } from "@/lib/supabase/client";
+import type { Profile } from "@/lib/supabase";
 import {
   getDepartments,
   getRolesForDepartment,
@@ -11,6 +13,8 @@ import {
 type TimerState = "idle" | "running" | "stopped";
 
 export default function ProcessTracker() {
+  const [profile, setProfile] = useState<Profile | null>(null);
+
   // Timer state
   const [timerState, setTimerState] = useState<TimerState>("idle");
   const [elapsed, setElapsed] = useState(0);
@@ -26,9 +30,6 @@ export default function ProcessTracker() {
   const [taskName, setTaskName] = useState("");
   const [taskOwner, setTaskOwner] = useState("");
   const [notes, setNotes] = useState("");
-  const [employees, setEmployees] = useState<{ name: string; role: string }[]>(
-    []
-  );
 
   // UI state
   const [submitStatus, setSubmitStatus] = useState<
@@ -42,24 +43,37 @@ export default function ProcessTracker() {
   const categories = getCategoriesForRole(department, role);
   const tasks = getTasksForCategory(department, role, category);
 
-  // Fetch active employees for the task owner dropdown
+  // Load user profile and auto-fill form fields
   useEffect(() => {
-    fetch("/api/employees?active=true")
-      .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data)) setEmployees(data);
-      })
-      .catch(() => {});
+    const loadProfile = async () => {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      if (data) {
+        setProfile(data);
+        setDepartment(data.department || "");
+        setRole(data.role || "");
+        setTaskOwner(data.name || "");
+      }
+    };
+
+    loadProfile();
   }, []);
 
   // Timer logic
-  const tick = useCallback(() => {
-    setElapsed((prev) => prev + 1);
-  }, []);
+  const tick = useCallback(() => setElapsed((s) => s + 1), []);
 
   const handleStart = () => {
-    const now = new Date();
-    setStartTime(now);
+    setStartTime(new Date());
     setElapsed(0);
     setTimerState("running");
     intervalRef.current = setInterval(tick, 1000);
@@ -84,30 +98,33 @@ export default function ProcessTracker() {
   }, []);
 
   // Reset downstream selects when parent changes
-  useEffect(() => {
-    setRole("");
-    setCategory("");
-    setTaskName("");
-  }, [department]);
-
-  useEffect(() => {
-    setCategory("");
-    setTaskName("");
-  }, [role]);
-
-  useEffect(() => {
-    setTaskName("");
-  }, [category]);
+  useEffect(() => { setCategory(""); setTaskName(""); }, [department]);
+  useEffect(() => { setCategory(""); setTaskName(""); }, [role]);
+  useEffect(() => { setTaskName(""); }, [category]);
 
   const formatTime = (seconds: number) => {
-    const h = Math.floor(seconds / 3600)
-      .toString()
-      .padStart(2, "0");
-    const m = Math.floor((seconds % 3600) / 60)
-      .toString()
-      .padStart(2, "0");
+    const h = Math.floor(seconds / 3600).toString().padStart(2, "0");
+    const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, "0");
     const s = (seconds % 60).toString().padStart(2, "0");
     return `${h}:${m}:${s}`;
+  };
+
+  const resetForm = () => {
+    setPoNumber("");
+    setSoNumber("");
+    setCategory("");
+    setTaskName("");
+    setNotes("");
+    setElapsed(0);
+    setStartTime(null);
+    setTimerState("idle");
+    setSubmitStatus("idle");
+    // Re-apply profile defaults
+    if (profile) {
+      setDepartment(profile.department || "");
+      setRole(profile.role || "");
+      setTaskOwner(profile.name || "");
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -121,11 +138,11 @@ export default function ProcessTracker() {
       return;
     }
 
+    const finalElapsed = elapsed;
+    if (timerState === "running") handleStop();
+
     setSubmitStatus("loading");
     setErrorMsg("");
-
-    const endTime = timerState === "running" ? new Date() : undefined;
-    if (timerState === "running") handleStop();
 
     const payload = {
       po_number: poNumber || null,
@@ -136,9 +153,9 @@ export default function ProcessTracker() {
       task_name: taskName,
       task_owner: taskOwner,
       notes: notes || null,
-      start_time: startTime?.toISOString(),
-      end_time: (endTime || new Date()).toISOString(),
-      duration_seconds: elapsed,
+      start_time: startTime?.toISOString() ?? null,
+      end_time: new Date().toISOString(),
+      duration_seconds: finalElapsed,
     };
 
     try {
@@ -147,25 +164,9 @@ export default function ProcessTracker() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
       if (!res.ok) throw new Error("Failed to save entry");
-
       setSubmitStatus("success");
-      // Reset form
-      setTimeout(() => {
-        setPoNumber("");
-        setSoNumber("");
-        setDepartment("");
-        setRole("");
-        setCategory("");
-        setTaskName("");
-        setTaskOwner("");
-        setNotes("");
-        setElapsed(0);
-        setStartTime(null);
-        setTimerState("idle");
-        setSubmitStatus("idle");
-      }, 2000);
+      setTimeout(resetForm, 2000);
     } catch {
       setSubmitStatus("error");
       setErrorMsg("Failed to save entry. Please try again.");
@@ -283,9 +284,7 @@ export default function ProcessTracker() {
           >
             <option value="">Select Department</option>
             {departments.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
+              <option key={d} value={d}>{d}</option>
             ))}
           </select>
         </div>
@@ -303,9 +302,7 @@ export default function ProcessTracker() {
           >
             <option value="">Select Role</option>
             {roles.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
+              <option key={r} value={r}>{r}</option>
             ))}
           </select>
         </div>
@@ -323,9 +320,7 @@ export default function ProcessTracker() {
           >
             <option value="">Select Category</option>
             {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
+              <option key={c} value={c}>{c}</option>
             ))}
           </select>
         </div>
@@ -343,39 +338,27 @@ export default function ProcessTracker() {
           >
             <option value="">Select Task</option>
             {tasks.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
+              <option key={t} value={t}>{t}</option>
             ))}
           </select>
         </div>
 
-        {/* Task Owner */}
+        {/* Task Owner — auto-filled from profile */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Task Owner <span className="text-red-500">*</span>
           </label>
-          {employees.length > 0 ? (
-            <select
-              value={taskOwner}
-              onChange={(e) => setTaskOwner(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
-            >
-              <option value="">Select Employee</option>
-              {employees.map((emp) => (
-                <option key={emp.name} value={emp.name}>
-                  {emp.name} — {emp.role}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input
-              type="text"
-              value={taskOwner}
-              onChange={(e) => setTaskOwner(e.target.value)}
-              placeholder="Enter name"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
-            />
+          <input
+            type="text"
+            value={taskOwner}
+            onChange={(e) => setTaskOwner(e.target.value)}
+            placeholder="Your name"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087] bg-gray-50"
+          />
+          {profile && (
+            <p className="text-xs text-green-600 mt-1">
+              ✓ Auto-filled from your account
+            </p>
           )}
         </div>
 
@@ -393,14 +376,12 @@ export default function ProcessTracker() {
           />
         </div>
 
-        {/* Error */}
         {errorMsg && (
           <p className="text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2">
             {errorMsg}
           </p>
         )}
 
-        {/* Submit */}
         <button
           type="submit"
           disabled={submitStatus === "loading" || submitStatus === "success"}

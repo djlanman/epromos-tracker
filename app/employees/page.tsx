@@ -1,193 +1,212 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { Employee } from "@/lib/supabase";
-import { getDepartments, getRolesForDepartment } from "@/lib/taskData";
+import { createClient } from "@/lib/supabase/client";
+import type { Profile } from "@/lib/supabase";
+import { getDepartments } from "@/lib/taskData";
+import { useRouter } from "next/navigation";
 
-const ROLES_LIST = [
-  "Enterprise Business Manager",
-  "Account Manager",
-  "Brand Account Manager",
-  "Brand Consultant",
-  "Program Account Manager",
-  "Program Specialist",
-  "Account Coordinator",
-  "Graphic Artist",
-  "Order Processing Executive",
-  "QA - Account Coordinator",
+// Display names → task data role names (must match taskData.ts keys)
+const ROLES: { label: string; value: string }[] = [
+  { label: "Enterprise Business Manager", value: "Enterprise Business Managers" },
+  { label: "Account Manager",             value: "Account Managers" },
+  { label: "Brand Account Manager",       value: "Brand Consultant | Brand Account Manager" },
+  { label: "Brand Consultant",            value: "Brand Consultant | Brand Account Manager" },
+  { label: "Program Account Manager",     value: "Program Account Managers" },
+  { label: "Program Specialist",          value: "Program Specialists" },
+  { label: "Account Coordinator",         value: "Account Coordinators" },
+  { label: "Graphic Artist",              value: "Graphic Artist" },
+  { label: "Order Processing Executive",  value: "Order Processing Executive" },
+  { label: "QA - Account Coordinator",   value: "QA - Account Coordinator" },
 ];
 
 export default function EmployeesPage() {
-  const [authed, setAuthed] = useState(false);
-  const [password, setPassword] = useState("");
-  const [authError, setAuthError] = useState("");
-
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const router = useRouter();
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [employees, setEmployees] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Add form
+  // Add form state
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [role, setRole] = useState("");
   const [department, setDepartment] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
   const [addStatus, setAddStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [addError, setAddError] = useState("");
 
   const departments = getDepartments();
 
-  const handleAuth = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === (process.env.NEXT_PUBLIC_EMPLOYEES_PASSWORD || "epromos_admin")) {
-      setAuthed(true);
-    } else {
-      setAuthError("Incorrect password.");
-    }
-  };
+  useEffect(() => {
+    const checkAuth = async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.push("/login"); return; }
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      setProfile(data);
+      setAuthLoading(false);
+    };
+    checkAuth();
+  }, [router]);
 
   const fetchEmployees = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/employees");
-      const data = await res.json();
-      if (Array.isArray(data)) setEmployees(data);
-    } catch {
-      console.error("Failed to fetch employees");
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("name");
+      if (data) setEmployees(data);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (authed) fetchEmployees();
-  }, [authed]);
+    if (!authLoading && profile?.is_admin) fetchEmployees();
+  }, [authLoading, profile]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !role || !department) {
-      setAddError("Name, role, and department are required.");
+    if (!name.trim() || !email.trim() || !password || !role || !department) {
+      setAddError("All fields are required.");
       return;
     }
     setAddStatus("loading");
     setAddError("");
+
     try {
-      const res = await fetch("/api/employees", {
+      const res = await fetch("/api/employees/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), role, department, active: true }),
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          name: name.trim(),
+          role,         // Already the task data format from ROLES array
+          department,
+          is_admin: isAdmin,
+        }),
       });
-      if (!res.ok) throw new Error("Failed");
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create account");
+
       setAddStatus("success");
-      setName("");
-      setRole("");
-      setDepartment("");
+      setName(""); setEmail(""); setPassword(""); setRole(""); setDepartment(""); setIsAdmin(false);
       fetchEmployees();
-      setTimeout(() => setAddStatus("idle"), 2000);
-    } catch {
+      setTimeout(() => setAddStatus("idle"), 2500);
+    } catch (err: unknown) {
       setAddStatus("error");
-      setAddError("Failed to add employee.");
+      setAddError(err instanceof Error ? err.message : "Failed to create account.");
     }
   };
 
-  const toggleActive = async (emp: Employee) => {
-    try {
-      await fetch(`/api/employees/${emp.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ active: !emp.active }),
-      });
-      setEmployees((prev) =>
-        prev.map((e) => (e.id === emp.id ? { ...e, active: !e.active } : e))
-      );
-    } catch {
-      alert("Failed to update employee.");
-    }
+  const toggleActive = async (emp: Profile) => {
+    const supabase = createClient();
+    await supabase.from("profiles").update({ active: !emp.active }).eq("id", emp.id);
+    setEmployees((prev) =>
+      prev.map((e) => (e.id === emp.id ? { ...e, active: !e.active } : e))
+    );
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Remove this employee?")) return;
-    try {
-      await fetch(`/api/employees/${id}`, { method: "DELETE" });
-      setEmployees((prev) => prev.filter((e) => e.id !== id));
-    } catch {
-      alert("Failed to delete employee.");
-    }
-  };
+  if (authLoading) {
+    return <div className="text-center py-16 text-gray-400">Loading…</div>;
+  }
 
-  if (!authed) {
+  if (!profile?.is_admin) {
     return (
-      <div className="max-w-sm mx-auto mt-20">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-          <h1 className="text-xl font-bold text-[#003087] mb-6 text-center">
-            Employees — Admin Access
-          </h1>
-          <form onSubmit={handleAuth} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
-                autoFocus
-              />
-            </div>
-            {authError && <p className="text-red-600 text-sm">{authError}</p>}
-            <button
-              type="submit"
-              className="w-full py-2.5 bg-[#003087] text-white rounded-lg font-semibold hover:bg-[#002060] transition-colors"
-            >
-              Unlock
-            </button>
-          </form>
-        </div>
+      <div className="max-w-sm mx-auto mt-20 text-center">
+        <p className="text-gray-500 text-lg">Access Denied</p>
+        <p className="text-gray-400 text-sm mt-2">
+          You need admin access to manage employees.
+        </p>
       </div>
     );
   }
 
   return (
     <div className="max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold text-[#003087] mb-6">
-        Employee Roster
-      </h1>
+      <h1 className="text-2xl font-bold text-[#003087] mb-6">Employee Roster</h1>
 
-      {/* Add Employee Form */}
+      {/* Create Employee Form */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
-          Add Employee
+          Create Employee Account
         </h2>
-        <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Full Name"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
-          />
-          <select
-            value={department}
-            onChange={(e) => setDepartment(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
-          >
-            <option value="">Department</option>
-            {departments.map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
-          >
-            <option value="">Role</option>
-            {ROLES_LIST.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
+        <form onSubmit={handleAdd} className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Full Name"
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+            />
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email address"
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Temporary password"
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+            />
+            <select
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+            >
+              <option value="">Select Department</option>
+              {departments.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+            >
+              <option value="">Select Role</option>
+              {ROLES.map((r) => (
+                <option key={r.label} value={r.value}>{r.label}</option>
+              ))}
+            </select>
+            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer self-center">
+              <input
+                type="checkbox"
+                checked={isAdmin}
+                onChange={(e) => setIsAdmin(e.target.checked)}
+                className="rounded"
+              />
+              Admin access (Entry Log & Employees)
+            </label>
+          </div>
+
+          {addError && (
+            <p className="text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2">
+              {addError}
+            </p>
+          )}
+
           <button
             type="submit"
             disabled={addStatus === "loading" || addStatus === "success"}
-            className={`py-2.5 rounded-lg font-semibold text-white text-sm transition-colors ${
+            className={`px-6 py-2.5 rounded-lg font-semibold text-white text-sm transition-colors ${
               addStatus === "success"
                 ? "bg-green-600 cursor-default"
                 : addStatus === "loading"
@@ -195,10 +214,13 @@ export default function EmployeesPage() {
                 : "bg-[#003087] hover:bg-[#002060]"
             }`}
           >
-            {addStatus === "loading" ? "Adding…" : addStatus === "success" ? "✓ Added" : "Add Employee"}
+            {addStatus === "loading"
+              ? "Creating…"
+              : addStatus === "success"
+              ? "✓ Account Created"
+              : "Create Account"}
           </button>
         </form>
-        {addError && <p className="text-red-600 text-sm mt-2">{addError}</p>}
       </div>
 
       {/* Employee Table */}
@@ -214,9 +236,9 @@ export default function EmployeesPage() {
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Department</th>
                 <th className="px-4 py-3">Role</th>
+                <th className="px-4 py-3">Access</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Added</th>
-                <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -225,6 +247,17 @@ export default function EmployeesPage() {
                   <td className="px-4 py-3 font-medium">{emp.name}</td>
                   <td className="px-4 py-3 text-gray-600">{emp.department}</td>
                   <td className="px-4 py-3 text-gray-600">{emp.role}</td>
+                  <td className="px-4 py-3">
+                    {emp.is_admin ? (
+                      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">
+                        Admin
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs">
+                        Standard
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <button
                       onClick={() => toggleActive(emp)}
@@ -239,14 +272,6 @@ export default function EmployeesPage() {
                   </td>
                   <td className="px-4 py-3 text-gray-400 text-xs">
                     {new Date(emp.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => handleDelete(emp.id)}
-                      className="text-red-500 hover:text-red-700 text-xs font-medium"
-                    >
-                      Remove
-                    </button>
                   </td>
                 </tr>
               ))}

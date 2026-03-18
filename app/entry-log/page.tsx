@@ -1,12 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { TimeEntry } from "@/lib/supabase";
-
-const CORRECT_PASSWORD =
-  typeof window !== "undefined"
-    ? process.env.NEXT_PUBLIC_ENTRY_LOG_PASSWORD || "epromos2024"
-    : "epromos2024";
+import { createClient } from "@/lib/supabase/client";
+import type { TimeEntry, Profile } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
 
 function formatDuration(seconds: number | null) {
   if (!seconds) return "—";
@@ -23,9 +20,9 @@ function formatDate(iso: string) {
 }
 
 export default function EntryLog() {
-  const [authed, setAuthed] = useState(false);
-  const [password, setPassword] = useState("");
-  const [authError, setAuthError] = useState("");
+  const router = useRouter();
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -37,14 +34,26 @@ export default function EntryLog() {
   const [filterOwner, setFilterOwner] = useState("");
   const [filterDate, setFilterDate] = useState("");
 
-  const handleAuth = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === (process.env.NEXT_PUBLIC_ENTRY_LOG_PASSWORD || "epromos2024")) {
-      setAuthed(true);
-    } else {
-      setAuthError("Incorrect password. Please try again.");
-    }
-  };
+  // Check auth + admin on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) { router.push("/login"); return; }
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      setProfile(data);
+      setAuthLoading(false);
+    };
+    checkAuth();
+  }, [router]);
 
   const fetchEntries = async () => {
     setLoading(true);
@@ -66,9 +75,9 @@ export default function EntryLog() {
   };
 
   useEffect(() => {
-    if (authed) fetchEntries();
+    if (!authLoading && profile?.is_admin) fetchEntries();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authed]);
+  }, [authLoading, profile]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this entry? This cannot be undone.")) return;
@@ -83,37 +92,17 @@ export default function EntryLog() {
     }
   };
 
-  if (!authed) {
+  if (authLoading) {
+    return <div className="text-center py-16 text-gray-400">Loading…</div>;
+  }
+
+  if (!profile?.is_admin) {
     return (
-      <div className="max-w-sm mx-auto mt-20">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-          <h1 className="text-xl font-bold text-[#003087] mb-6 text-center">
-            Entry Log — Access Required
-          </h1>
-          <form onSubmit={handleAuth} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
-                autoFocus
-              />
-            </div>
-            {authError && (
-              <p className="text-red-600 text-sm">{authError}</p>
-            )}
-            <button
-              type="submit"
-              className="w-full py-2.5 bg-[#003087] text-white rounded-lg font-semibold hover:bg-[#002060] transition-colors"
-            >
-              Unlock
-            </button>
-          </form>
-        </div>
+      <div className="max-w-sm mx-auto mt-20 text-center">
+        <p className="text-gray-500 text-lg">Access Denied</p>
+        <p className="text-gray-400 text-sm mt-2">
+          You need admin access to view the Entry Log.
+        </p>
       </div>
     );
   }
@@ -153,11 +142,7 @@ export default function EntryLog() {
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
         >
           <option value="">All Departments</option>
-          {depts.map((d) => (
-            <option key={d} value={d}>
-              {d}
-            </option>
-          ))}
+          {depts.map((d) => <option key={d} value={d}>{d}</option>)}
         </select>
         <select
           value={filterRole}
@@ -165,11 +150,7 @@ export default function EntryLog() {
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
         >
           <option value="">All Roles</option>
-          {roles.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
+          {roles.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
         <select
           value={filterOwner}
@@ -177,11 +158,7 @@ export default function EntryLog() {
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
         >
           <option value="">All Owners</option>
-          {owners.map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
-          ))}
+          {owners.map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
         <input
           type="date"
@@ -199,12 +176,7 @@ export default function EntryLog() {
           Refresh
         </button>
         <button
-          onClick={() => {
-            setFilterDept("");
-            setFilterRole("");
-            setFilterOwner("");
-            setFilterDate("");
-          }}
+          onClick={() => { setFilterDept(""); setFilterRole(""); setFilterOwner(""); setFilterDate(""); }}
           className="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors"
         >
           Clear Filters
@@ -243,9 +215,7 @@ export default function EntryLog() {
                   <td className="px-4 py-3 text-gray-600">{entry.department}</td>
                   <td className="px-4 py-3 text-gray-600">{entry.role}</td>
                   <td className="px-4 py-3 text-gray-600">{entry.task_category}</td>
-                  <td className="px-4 py-3 font-medium text-[#003087]">
-                    {entry.task_name}
-                  </td>
+                  <td className="px-4 py-3 font-medium text-[#003087]">{entry.task_name}</td>
                   <td className="px-4 py-3 text-gray-500">{entry.po_number || "—"}</td>
                   <td className="px-4 py-3 text-gray-500">{entry.so_number || "—"}</td>
                   <td className="px-4 py-3 font-mono text-green-700 font-semibold">

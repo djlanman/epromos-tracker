@@ -1,9 +1,18 @@
-import { createClient } from "@supabase/supabase-js";
+// Shared TypeScript types for the ePromos Tracker
+// Supabase clients are now in lib/supabase/client.ts and lib/supabase/server.ts
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+export type Profile = {
+  id: string;
+  created_at: string;
+  name: string;
+  role: string;
+  department: string;
+  is_admin: boolean;
+  active: boolean;
+};
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Kept for backwards-compatibility
+export type Employee = Profile;
 
 export type TimeEntry = {
   id: string;
@@ -16,16 +25,7 @@ export type TimeEntry = {
   task_name: string;
   task_owner: string;
   notes: string | null;
-  start_time: string;
+  start_time: string | null;
   end_time: string | null;
   duration_seconds: number | null;
-};
-
-export type Employee = {
-  id: string;
-  created_at: string;
-  name: string;
-  role: string;
-  department: string;
-  active: boolean;
 };
