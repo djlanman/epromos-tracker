@@ -119,9 +119,9 @@ export default function EntryLog() {
   }
 
   // Unique filter values from loaded entries
-  const depts = [...new Set(entries.map((e) => e.department))].sort();
-  const roles = [...new Set(entries.map((e) => e.role))].sort();
-  const owners = [...new Set(entries.map((e) => e.task_owner))].sort();
+  const depts = Array.from(new Set(entries.map((e) => e.department))).sort();
+  const roles = Array.from(new Set(entries.map((e) => e.role))).sort();
+  const owners = Array.from(new Set(entries.map((e) => e.task_owner))).sort();
 
   const filtered = entries.filter((e) => {
     if (filterDept && e.department !== filterDept) return false;
