@@ -105,21 +105,6 @@ export default function EntryLog() {
     }
   };
 
-  if (authLoading) {
-    return <div className="text-center py-16 text-gray-400">Loading...</div>;
-  }
-
-  if (!profile?.is_admin) {
-    return (
-      <div className="max-w-sm mx-auto mt-20 text-center">
-        <p className="text-gray-500 text-lg">Access Denied</p>
-        <p className="text-gray-400 text-sm mt-2">
-          You need admin access to view the Entry Log.
-        </p>
-      </div>
-    );
-  }
-
   // Unique filter values from loaded entries
   const depts = Array.from(new Set(entries.map((e) => e.department))).sort();
   const roles = Array.from(new Set(entries.map((e) => e.role))).sort();
@@ -133,7 +118,7 @@ export default function EntryLog() {
     : taskNames;
 
   // Apply filters
-  const filtered = entries.filter((e) => {
+  const filtered = useMemo(() => entries.filter((e) => {
     if (filterDept && e.department !== filterDept) return false;
     if (filterRole && e.role !== filterRole) return false;
     if (filterOwner && e.task_owner !== filterOwner) return false;
@@ -148,7 +133,7 @@ export default function EntryLog() {
       if (entryDate > filterDateTo) return false;
     }
     return true;
-  });
+  }), [entries, filterDept, filterRole, filterOwner, filterCategory, filterTask, filterDateFrom, filterDateTo]);
 
   const totalTime = filtered.reduce((sum, e) => sum + (e.duration_seconds || 0), 0);
 
@@ -181,6 +166,21 @@ export default function EntryLog() {
       a.taskName.localeCompare(b.taskName)
     );
   }, [filtered]);
+
+  if (authLoading) {
+    return <div className="text-center py-16 text-gray-400">Loading...</div>;
+  }
+
+  if (!profile?.is_admin) {
+    return (
+      <div className="max-w-sm mx-auto mt-20 text-center">
+        <p className="text-gray-500 text-lg">Access Denied</p>
+        <p className="text-gray-400 text-sm mt-2">
+          You need admin access to view the Entry Log.
+        </p>
+      </div>
+    );
+  }
 
   // --- CSV Export ---
   const escapeCSV = (val: string) => {
