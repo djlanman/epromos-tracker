@@ -48,31 +48,22 @@ export default async function RootLayout({
               {/* Nav + User */}
               <div className="flex items-center gap-6">
                 <nav className="flex gap-6 text-sm font-medium">
-                  <a
-                    href="/"
-                    className="hover:text-[#FF6B00] transition-colors"
-                  >
+                  <a href="/" className="hover:text-[#FF6B00] transition-colors">
                     Process Tracker
                   </a>
                   {profile?.is_admin && (
                     <>
-                      <a
-                        href="/entry-log"
-                        className="hover:text-[#FF6B00] transition-colors"
-                      >
+                      <a href="/entry-log" className="hover:text-[#FF6B00] transition-colors">
                         Entry Log
                       </a>
-                      <a
-                        href="/employees"
-                        className="hover:text-[#FF6B00] transition-colors"
-                      >
-                        Employees
+                      <a href="/employees" className="hover:text-[#FF6B00] transition-colors">
+                        Admin
                       </a>
                     </>
                   )}
                 </nav>
 
-                {/* User pill */}
+                {/* User info + sign out */}
                 <div className="flex items-center gap-3 border-l border-blue-700 pl-6">
                   <div className="text-right">
                     <p className="text-sm font-medium leading-tight">
