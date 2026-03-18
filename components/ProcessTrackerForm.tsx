@@ -2,12 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Profile } from "@/lib/supabase";
-import {
-  getDepartments,
-  getRolesForDepartment,
-  getCategoriesForRole,
-  getTasksForCategory,
-} from "@/lib/taskData";
+import type { TaskData } from "@/lib/taskData";
 
 type TimerState = "idle" | "running" | "stopped";
 
@@ -21,6 +16,10 @@ export default function ProcessTrackerForm({
   const [elapsed, setElapsed] = useState(0);
   const [startTime, setStartTime] = useState<Date | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Task hierarchy from database
+  const [taskData, setTaskData] = useState<TaskData>({});
+  const [taskDataLoading, setTaskDataLoading] = useState(true);
 
   // Form state — initialized directly from server-fetched profile
   const [poNumber, setPoNumber] = useState("");
@@ -38,11 +37,29 @@ export default function ProcessTrackerForm({
   >("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Derived dropdown options
-  const departments = getDepartments();
-  const roles = getRolesForDepartment(department);
-  const categories = getCategoriesForRole(department, role);
-  const tasks = getTasksForCategory(department, role, category);
+  // Fetch task hierarchy from Supabase
+  useEffect(() => {
+    const fetchTaskData = async () => {
+      try {
+        const res = await fetch("/api/task-hierarchy");
+        if (res.ok) {
+          const data = await res.json();
+          setTaskData(data);
+        }
+      } catch {
+        // Fall back silently — dropdowns will be empty
+      } finally {
+        setTaskDataLoading(false);
+      }
+    };
+    fetchTaskData();
+  }, []);
+
+  // Derived dropdown options from database data
+  const departments = Object.keys(taskData);
+  const roles = department ? Object.keys(taskData[department] || {}) : [];
+  const categories = department && role ? Object.keys(taskData[department]?.[role] || {}) : [];
+  const tasks = department && role && category ? (taskData[department]?.[role]?.[category] || []) : [];
 
   // Timer
   const tick = useCallback(() => setElapsed((s) => s + 1), []);
@@ -207,6 +224,10 @@ export default function ProcessTrackerForm({
       {/* Entry Form */}
       <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Entry Details</h2>
+
+        {taskDataLoading && (
+          <p className="text-sm text-gray-400">Loading task options...</p>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <div>

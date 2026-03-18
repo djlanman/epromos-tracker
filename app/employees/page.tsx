@@ -3,22 +3,10 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/supabase";
-import { getDepartments } from "@/lib/taskData";
 import { useRouter } from "next/navigation";
 
-// Display names → task data role names (must match taskData.ts keys)
-const ROLES: { label: string; value: string }[] = [
-  { label: "Enterprise Business Manager", value: "Enterprise Business Managers" },
-  { label: "Account Manager",             value: "Account Managers" },
-  { label: "Brand Account Manager",       value: "Brand Consultant | Brand Account Manager" },
-  { label: "Brand Consultant",            value: "Brand Consultant | Brand Account Manager" },
-  { label: "Program Account Manager",     value: "Program Account Managers" },
-  { label: "Program Specialist",          value: "Program Specialists" },
-  { label: "Account Coordinator",         value: "Account Coordinators" },
-  { label: "Graphic Artist",              value: "Graphic Artist" },
-  { label: "Order Processing Executive",  value: "Order Processing Executive" },
-  { label: "QA - Account Coordinator",   value: "QA - Account Coordinator" },
-];
+type Department = { id: number; name: string };
+type Role = { id: number; name: string; department_id: number };
 
 export default function EmployeesPage() {
   const router = useRouter();
@@ -26,6 +14,10 @@ export default function EmployeesPage() {
   const [authLoading, setAuthLoading] = useState(true);
   const [employees, setEmployees] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Dynamic departments/roles from database
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [allRoles, setAllRoles] = useState<Role[]>([]);
 
   // Add form state
   const [name, setName] = useState("");
@@ -37,7 +29,13 @@ export default function EmployeesPage() {
   const [addStatus, setAddStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [addError, setAddError] = useState("");
 
-  const departments = getDepartments();
+  // Roles filtered by selected department
+  const filteredRoles = department
+    ? allRoles.filter((r) => {
+        const dept = departments.find((d) => d.name === department);
+        return dept && r.department_id === dept.id;
+      })
+    : [];
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -56,6 +54,23 @@ export default function EmployeesPage() {
     };
     checkAuth();
   }, [router]);
+
+  // Fetch departments and roles from database
+  useEffect(() => {
+    const fetchTaskData = async () => {
+      try {
+        const [deptRes, roleRes] = await Promise.all([
+          fetch("/api/task-hierarchy?type=departments"),
+          fetch("/api/task-hierarchy?type=roles"),
+        ]);
+        if (deptRes.ok) setDepartments(await deptRes.json());
+        if (roleRes.ok) setAllRoles(await roleRes.json());
+      } catch {
+        // Silently fail — dropdowns may be empty
+      }
+    };
+    fetchTaskData();
+  }, []);
 
   const fetchEmployees = async () => {
     setLoading(true);
@@ -92,7 +107,7 @@ export default function EmployeesPage() {
           email: email.trim(),
           password,
           name: name.trim(),
-          role,         // Already the task data format from ROLES array
+          role,
           department,
           is_admin: isAdmin,
         }),
@@ -120,7 +135,7 @@ export default function EmployeesPage() {
   };
 
   if (authLoading) {
-    return <div className="text-center py-16 text-gray-400">Loading…</div>;
+    return <div className="text-center py-16 text-gray-400">Loading...</div>;
   }
 
   if (!profile?.is_admin) {
@@ -168,22 +183,23 @@ export default function EmployeesPage() {
             />
             <select
               value={department}
-              onChange={(e) => setDepartment(e.target.value)}
+              onChange={(e) => { setDepartment(e.target.value); setRole(""); }}
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
             >
               <option value="">Select Department</option>
               {departments.map((d) => (
-                <option key={d} value={d}>{d}</option>
+                <option key={d.id} value={d.name}>{d.name}</option>
               ))}
             </select>
             <select
               value={role}
               onChange={(e) => setRole(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+              disabled={!department}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087] disabled:bg-gray-100 disabled:text-gray-400"
             >
               <option value="">Select Role</option>
-              {ROLES.map((r) => (
-                <option key={r.label} value={r.value}>{r.label}</option>
+              {filteredRoles.map((r) => (
+                <option key={r.id} value={r.name}>{r.name}</option>
               ))}
             </select>
             <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer self-center">
@@ -215,7 +231,7 @@ export default function EmployeesPage() {
             }`}
           >
             {addStatus === "loading"
-              ? "Creating…"
+              ? "Creating..."
               : addStatus === "success"
               ? "✓ Account Created"
               : "Create Account"}
@@ -225,7 +241,7 @@ export default function EmployeesPage() {
 
       {/* Employee Table */}
       {loading ? (
-        <div className="text-center py-16 text-gray-400">Loading…</div>
+        <div className="text-center py-16 text-gray-400">Loading...</div>
       ) : employees.length === 0 ? (
         <div className="text-center py-16 text-gray-400">No employees yet.</div>
       ) : (
