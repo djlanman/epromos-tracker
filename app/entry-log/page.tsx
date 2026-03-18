@@ -191,7 +191,7 @@ export default function EntryLog() {
   };
 
   const exportDetailCSV = () => {
-    const headers = ["Date", "Owner", "Department", "Role", "Category", "Task", "PO #", "SO #", "Duration (seconds)", "Duration (hours)", "Notes"];
+    const headers = ["Date", "Owner", "Department", "Role", "Category", "Task", "PO #", "SO #", "Duration (seconds)", "Duration (minutes)", "Duration (hours)", "Notes"];
     const rows = filtered.map((e) => [
       formatDateCSV(e.created_at),
       e.task_owner,
@@ -202,6 +202,7 @@ export default function EntryLog() {
       e.po_number || "",
       e.so_number || "",
       String(e.duration_seconds || 0),
+      ((e.duration_seconds || 0) / 60).toFixed(2),
       formatDurationDecimal(e.duration_seconds),
       e.notes || "",
     ]);
@@ -211,7 +212,7 @@ export default function EntryLog() {
   };
 
   const exportSummaryCSV = () => {
-    const headers = ["Department", "Role", "Category", "Task", "Entries", "Total Duration (seconds)", "Total Duration (hours)", "Owners"];
+    const headers = ["Department", "Role", "Category", "Task", "Entries", "Total Duration (seconds)", "Total Duration (minutes)", "Total Duration (hours)", "Owners"];
     const rows = summaryRows.map((r) => [
       r.department,
       r.role,
@@ -219,6 +220,7 @@ export default function EntryLog() {
       r.taskName,
       String(r.entryCount),
       String(r.totalSeconds),
+      (r.totalSeconds / 60).toFixed(2),
       formatDurationDecimal(r.totalSeconds),
       r.owners.join("; "),
     ]);
@@ -226,7 +228,7 @@ export default function EntryLog() {
     // Add totals row
     const totalEntries = summaryRows.reduce((s, r) => s + r.entryCount, 0);
     const totalSec = summaryRows.reduce((s, r) => s + r.totalSeconds, 0);
-    rows.push(["TOTAL", "", "", "", String(totalEntries), String(totalSec), formatDurationDecimal(totalSec), ""]);
+    rows.push(["TOTAL", "", "", "", String(totalEntries), String(totalSec), (totalSec / 60).toFixed(2), formatDurationDecimal(totalSec), ""]);
 
     const csv = [headers, ...rows].map((row) => row.map(escapeCSV).join(",")).join("\n");
     downloadCSV(csv, "time-entries-summary.csv");
