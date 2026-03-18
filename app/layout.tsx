@@ -52,6 +52,9 @@ export default async function RootLayout({
                       <a href="/entry-log" className="hover:text-[#4CA868] transition-colors">
                         Entry Log
                       </a>
+                      <a href="/reports" className="hover:text-[#4CA868] transition-colors">
+                        Reports
+                      </a>
                       <a href="/manage-tasks" className="hover:text-[#4CA868] transition-colors">
                         Manage Tasks
                       </a>
