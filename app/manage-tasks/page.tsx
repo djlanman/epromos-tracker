@@ -191,7 +191,7 @@ export default function ManageTasksPage() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold text-[#003087] mb-6">Manage Tasks</h1>
+      <h1 className="text-2xl font-bold text-[#1A3C28] mb-6">Manage Tasks</h1>
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1">
@@ -201,7 +201,7 @@ export default function ManageTasksPage() {
             onClick={() => { setActiveTab(tab.key); setEditingId(null); setNewName(""); setAddError(""); setAddStatus("idle"); }}
             className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-colors ${
               activeTab === tab.key
-                ? "bg-white text-[#003087] shadow-sm"
+                ? "bg-white text-[#1A3C28] shadow-sm"
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
@@ -217,7 +217,7 @@ export default function ManageTasksPage() {
           <select
             value={filterDeptId}
             onChange={(e) => { setFilterDeptId(e.target.value ? parseInt(e.target.value) : ""); setFilterRoleId(""); }}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]"
           >
             <option value="">All Departments</option>
             {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -226,7 +226,7 @@ export default function ManageTasksPage() {
             <select
               value={filterRoleId}
               onChange={(e) => setFilterRoleId(e.target.value ? parseInt(e.target.value) : "")}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]"
             >
               <option value="">All Roles</option>
               {(filterDeptId ? roles.filter((r) => r.department_id === filterDeptId) : roles).map((r) => (
@@ -247,7 +247,7 @@ export default function ManageTasksPage() {
             <select
               value={addDeptId}
               onChange={(e) => setAddDeptId(e.target.value ? parseInt(e.target.value) : "")}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]"
             >
               <option value="">Select Department</option>
               {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -258,7 +258,7 @@ export default function ManageTasksPage() {
               <select
                 value={addDeptId}
                 onChange={(e) => { setAddDeptId(e.target.value ? parseInt(e.target.value) : ""); setAddRoleId(""); }}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]"
               >
                 <option value="">Select Department</option>
                 {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -267,7 +267,7 @@ export default function ManageTasksPage() {
                 value={addRoleId}
                 onChange={(e) => setAddRoleId(e.target.value ? parseInt(e.target.value) : "")}
                 disabled={!addDeptId}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087] disabled:bg-gray-100 disabled:text-gray-400"
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] disabled:bg-gray-100 disabled:text-gray-400"
               >
                 <option value="">Select Role</option>
                 {rolesForAddForm.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -279,13 +279,13 @@ export default function ManageTasksPage() {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder={`New ${activeTab === "departments" ? "department" : activeTab === "roles" ? "role" : "category"} name`}
-            className="flex-1 min-w-[200px] border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+            className="flex-1 min-w-[200px] border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]"
           />
           <button
             type="submit"
             disabled={addStatus === "loading" || addStatus === "success"}
             className={`px-5 py-2 rounded-lg font-semibold text-white text-sm transition-colors ${
-              addStatus === "success" ? "bg-green-600" : addStatus === "loading" ? "bg-gray-400" : "bg-[#003087] hover:bg-[#002060]"
+              addStatus === "success" ? "bg-green-600" : addStatus === "loading" ? "bg-gray-400" : "bg-[#1A3C28] hover:bg-[#122B1C]"
             }`}
           >
             {addStatus === "loading" ? "Adding..." : addStatus === "success" ? "✓ Added" : "Add"}
@@ -321,7 +321,7 @@ export default function ManageTasksPage() {
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
                           onKeyDown={(e) => { if (e.key === "Enter") handleRename("department", dept.id); if (e.key === "Escape") setEditingId(null); }}
-                          className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+                          className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]"
                           autoFocus
                         />
                         <button onClick={() => handleRename("department", dept.id)} className="text-green-600 text-xs font-semibold">Save</button>
@@ -343,7 +343,7 @@ export default function ManageTasksPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex gap-2 justify-end">
-                      <button onClick={() => { setEditingId(dept.id); setEditName(dept.name); }} className="text-[#003087] hover:text-[#002060] text-xs font-semibold">Rename</button>
+                      <button onClick={() => { setEditingId(dept.id); setEditName(dept.name); }} className="text-[#1A3C28] hover:text-[#122B1C] text-xs font-semibold">Rename</button>
                       <button onClick={() => handleDelete("department", dept.id, dept.name)} className="text-red-500 hover:text-red-700 text-xs font-semibold">Delete</button>
                     </div>
                   </td>
@@ -361,7 +361,7 @@ export default function ManageTasksPage() {
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
                           onKeyDown={(e) => { if (e.key === "Enter") handleRename("role", role.id); if (e.key === "Escape") setEditingId(null); }}
-                          className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+                          className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]"
                           autoFocus
                         />
                         <button onClick={() => handleRename("role", role.id)} className="text-green-600 text-xs font-semibold">Save</button>
@@ -386,7 +386,7 @@ export default function ManageTasksPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex gap-2 justify-end">
-                      <button onClick={() => { setEditingId(role.id); setEditName(role.name); }} className="text-[#003087] hover:text-[#002060] text-xs font-semibold">Rename</button>
+                      <button onClick={() => { setEditingId(role.id); setEditName(role.name); }} className="text-[#1A3C28] hover:text-[#122B1C] text-xs font-semibold">Rename</button>
                       <button onClick={() => handleDelete("role", role.id, role.name)} className="text-red-500 hover:text-red-700 text-xs font-semibold">Delete</button>
                     </div>
                   </td>
@@ -407,7 +407,7 @@ export default function ManageTasksPage() {
                             value={editName}
                             onChange={(e) => setEditName(e.target.value)}
                             onKeyDown={(e) => { if (e.key === "Enter") handleRename("category", cat.id); if (e.key === "Escape") setEditingId(null); }}
-                            className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+                            className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]"
                             autoFocus
                           />
                           <button onClick={() => handleRename("category", cat.id)} className="text-green-600 text-xs font-semibold">Save</button>
@@ -431,7 +431,7 @@ export default function ManageTasksPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex gap-2 justify-end">
-                        <button onClick={() => { setEditingId(cat.id); setEditName(cat.name); }} className="text-[#003087] hover:text-[#002060] text-xs font-semibold">Rename</button>
+                        <button onClick={() => { setEditingId(cat.id); setEditName(cat.name); }} className="text-[#1A3C28] hover:text-[#122B1C] text-xs font-semibold">Rename</button>
                         <button onClick={() => handleDelete("category", cat.id, cat.name)} className="text-red-500 hover:text-red-700 text-xs font-semibold">Delete</button>
                       </div>
                     </td>

@@ -128,7 +128,7 @@ export default function EntryLog() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-[#003087]">Entry Log</h1>
+        <h1 className="text-2xl font-bold text-[#1A3C28]">Entry Log</h1>
         <span className="text-sm text-gray-500">
           {filtered.length} entries · {formatDuration(totalTime)} total
         </span>
@@ -139,7 +139,7 @@ export default function EntryLog() {
         <select
           value={filterDept}
           onChange={(e) => setFilterDept(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]"
         >
           <option value="">All Departments</option>
           {depts.map((d) => <option key={d} value={d}>{d}</option>)}
@@ -147,7 +147,7 @@ export default function EntryLog() {
         <select
           value={filterRole}
           onChange={(e) => setFilterRole(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]"
         >
           <option value="">All Roles</option>
           {roles.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -155,7 +155,7 @@ export default function EntryLog() {
         <select
           value={filterOwner}
           onChange={(e) => setFilterOwner(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]"
         >
           <option value="">All Owners</option>
           {owners.map((o) => <option key={o} value={o}>{o}</option>)}
@@ -164,14 +164,14 @@ export default function EntryLog() {
           type="date"
           value={filterDate}
           onChange={(e) => setFilterDate(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]"
         />
       </div>
 
       <div className="flex gap-2 mb-4">
         <button
           onClick={fetchEntries}
-          className="px-4 py-2 bg-[#003087] text-white text-sm rounded-lg hover:bg-[#002060] transition-colors"
+          className="px-4 py-2 bg-[#1A3C28] text-white text-sm rounded-lg hover:bg-[#122B1C] transition-colors"
         >
           Refresh
         </button>
@@ -215,7 +215,7 @@ export default function EntryLog() {
                   <td className="px-4 py-3 text-gray-600">{entry.department}</td>
                   <td className="px-4 py-3 text-gray-600">{entry.role}</td>
                   <td className="px-4 py-3 text-gray-600">{entry.task_category}</td>
-                  <td className="px-4 py-3 font-medium text-[#003087]">{entry.task_name}</td>
+                  <td className="px-4 py-3 font-medium text-[#1A3C28]">{entry.task_name}</td>
                   <td className="px-4 py-3 text-gray-500">{entry.po_number || "—"}</td>
                   <td className="px-4 py-3 text-gray-500">{entry.so_number || "—"}</td>
                   <td className="px-4 py-3 font-mono text-green-700 font-semibold">

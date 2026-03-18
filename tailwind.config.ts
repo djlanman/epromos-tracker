@@ -10,8 +10,10 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          blue: "#003087",
-          orange: "#FF6B00",
+          green: "#1A3C28",
+          "green-dark": "#122B1C",
+          "green-light": "#2E7D47",
+          "green-accent": "#4CA868",
         },
       },
     },

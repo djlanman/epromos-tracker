@@ -239,7 +239,7 @@ export default function EmployeesPage() {
 
   return (
     <div className="max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold text-[#003087] mb-6">Employee Roster</h1>
+      <h1 className="text-2xl font-bold text-[#1A3C28] mb-6">Employee Roster</h1>
 
       {/* Create Employee Form */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
@@ -250,20 +250,20 @@ export default function EmployeesPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input type="text" value={name} onChange={(e) => setName(e.target.value)}
               placeholder="Full Name"
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]" />
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]" />
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
               placeholder="Email address"
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]" />
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]" />
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
               placeholder="Temporary password"
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]" />
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]" />
             <select value={department} onChange={(e) => { setDepartment(e.target.value); setRole(""); }}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]">
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]">
               <option value="">Select Department</option>
               {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
             </select>
             <select value={role} onChange={(e) => setRole(e.target.value)} disabled={!department}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087] disabled:bg-gray-100 disabled:text-gray-400">
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] disabled:bg-gray-100 disabled:text-gray-400">
               <option value="">Select Role</option>
               {filteredRoles.map((r) => <option key={r.id} value={r.name}>{r.name}</option>)}
             </select>
@@ -277,7 +277,7 @@ export default function EmployeesPage() {
             className={`px-6 py-2.5 rounded-lg font-semibold text-white text-sm transition-colors ${
               addStatus === "success" ? "bg-green-600 cursor-default"
               : addStatus === "loading" ? "bg-gray-400 cursor-not-allowed"
-              : "bg-[#003087] hover:bg-[#002060]"
+              : "bg-[#1A3C28] hover:bg-[#122B1C]"
             }`}>
             {addStatus === "loading" ? "Creating..." : addStatus === "success" ? "✓ Account Created" : "Create Account"}
           </button>
@@ -306,13 +306,13 @@ export default function EmployeesPage() {
             <tbody className="divide-y divide-gray-100">
               {employees.map((emp) => (
                 <>
-                  <tr key={emp.id} className={`hover:bg-gray-50 ${editingId === emp.id ? "bg-blue-50" : ""}`}>
+                  <tr key={emp.id} className={`hover:bg-gray-50 ${editingId === emp.id ? "bg-green-50" : ""}`}>
                     <td className="px-4 py-3 font-medium">{emp.name}</td>
                     <td className="px-4 py-3 text-gray-600">{emp.department}</td>
                     <td className="px-4 py-3 text-gray-600">{emp.role}</td>
                     <td className="px-4 py-3">
                       {emp.is_admin ? (
-                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">Admin</span>
+                        <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold">Admin</span>
                       ) : (
                         <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs">Standard</span>
                       )}
@@ -336,7 +336,7 @@ export default function EmployeesPage() {
                           </button>
                         ) : (
                           <>
-                            <button onClick={() => startEdit(emp)} className="text-[#003087] hover:text-[#002060] text-xs font-semibold">
+                            <button onClick={() => startEdit(emp)} className="text-[#1A3C28] hover:text-[#122B1C] text-xs font-semibold">
                               Edit
                             </button>
                             <button onClick={() => handleDelete(emp)} className="text-red-500 hover:text-red-700 text-xs font-semibold">
@@ -350,31 +350,31 @@ export default function EmployeesPage() {
 
                   {/* Inline Edit Row */}
                   {editingId === emp.id && (
-                    <tr key={`${emp.id}-edit`} className="bg-blue-50 border-t border-blue-100">
+                    <tr key={`${emp.id}-edit`} className="bg-green-50 border-t border-green-100">
                       <td colSpan={7} className="px-4 py-4">
                         <form onSubmit={handleSaveEdit} className="space-y-3">
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div>
                               <label className="block text-xs font-medium text-gray-500 mb-1">Name</label>
                               <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]" />
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]" />
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-gray-500 mb-1">Email (leave blank to keep current)</label>
                               <input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)}
                                 placeholder="New email address"
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]" />
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]" />
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-gray-500 mb-1">Password (leave blank to keep current)</label>
                               <input type="password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)}
                                 placeholder="New password"
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]" />
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]" />
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-gray-500 mb-1">Department</label>
                               <select value={editDepartment} onChange={(e) => { setEditDepartment(e.target.value); setEditRole(""); }}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]">
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]">
                                 <option value="">Select Department</option>
                                 {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
                               </select>
@@ -382,7 +382,7 @@ export default function EmployeesPage() {
                             <div>
                               <label className="block text-xs font-medium text-gray-500 mb-1">Role</label>
                               <select value={editRole} onChange={(e) => setEditRole(e.target.value)} disabled={!editDepartment}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087] disabled:bg-gray-100 disabled:text-gray-400">
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] disabled:bg-gray-100 disabled:text-gray-400">
                                 <option value="">Select Role</option>
                                 {editFilteredRoles.map((r) => <option key={r.id} value={r.name}>{r.name}</option>)}
                               </select>
@@ -402,7 +402,7 @@ export default function EmployeesPage() {
                               className={`px-5 py-2 rounded-lg font-semibold text-white text-sm transition-colors ${
                                 editStatus === "success" ? "bg-green-600 cursor-default"
                                 : editStatus === "loading" ? "bg-gray-400 cursor-not-allowed"
-                                : "bg-[#003087] hover:bg-[#002060]"
+                                : "bg-[#1A3C28] hover:bg-[#122B1C]"
                               }`}>
                               {editStatus === "loading" ? "Saving..." : editStatus === "success" ? "✓ Saved" : "Save Changes"}
                             </button>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import Image from "next/image";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -33,9 +34,14 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-2">
-            <span className="text-4xl font-bold text-[#FF6B00]">e</span>
-            <span className="text-2xl font-bold text-[#003087]">Promos</span>
+          <div className="flex justify-center mb-3">
+            <Image
+              src="/epromos-logo.svg"
+              alt="ePromos"
+              width={220}
+              height={50}
+              priority
+            />
           </div>
           <p className="text-gray-500 text-sm">Order Entry Tracker</p>
         </div>
@@ -56,7 +62,7 @@ export default function LoginPage() {
                 required
                 autoFocus
                 placeholder="you@epromos.com"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]"
               />
             </div>
             <div>
@@ -68,7 +74,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]"
               />
             </div>
             {error && (
@@ -79,9 +85,9 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 bg-[#003087] text-white rounded-lg font-semibold hover:bg-[#002060] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-2.5 bg-[#1A3C28] text-white rounded-lg font-semibold hover:bg-[#122B1C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? "Signing in…" : "Sign In"}
+              {loading ? "Signing in..." : "Sign In"}
             </button>
           </form>
         </div>

@@ -179,12 +179,12 @@ export default function ProcessTrackerForm({
     timerState === "running"
       ? "text-green-600"
       : timerState === "stopped"
-      ? "text-[#003087]"
+      ? "text-[#1A3C28]"
       : "text-gray-400";
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-[#003087] mb-6">Process Tracker</h1>
+      <h1 className="text-2xl font-bold text-[#1A3C28] mb-6">Process Tracker</h1>
 
       {/* Timer */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
@@ -234,13 +234,13 @@ export default function ProcessTrackerForm({
             <label className="block text-sm font-medium text-gray-700 mb-1">PO Number</label>
             <input type="text" value={poNumber} onChange={(e) => setPoNumber(e.target.value)}
               placeholder="e.g. PO-123456"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]" />
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">SO Number</label>
             <input type="text" value={soNumber} onChange={(e) => setSoNumber(e.target.value)}
               placeholder="e.g. SO-789012"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]" />
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]" />
           </div>
         </div>
 
@@ -249,7 +249,7 @@ export default function ProcessTrackerForm({
             Department <span className="text-red-500">*</span>
           </label>
           <select value={department} onChange={(e) => handleDepartmentChange(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]">
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]">
             <option value="">Select Department</option>
             {departments.map((d) => <option key={d} value={d}>{d}</option>)}
           </select>
@@ -261,7 +261,7 @@ export default function ProcessTrackerForm({
           </label>
           <select value={role} onChange={(e) => handleRoleChange(e.target.value)}
             disabled={!department}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087] disabled:bg-gray-100 disabled:text-gray-400">
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] disabled:bg-gray-100 disabled:text-gray-400">
             <option value="">Select Role</option>
             {roles.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
@@ -273,7 +273,7 @@ export default function ProcessTrackerForm({
           </label>
           <select value={category} onChange={(e) => { setCategory(e.target.value); setTaskName(""); }}
             disabled={!role}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087] disabled:bg-gray-100 disabled:text-gray-400">
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] disabled:bg-gray-100 disabled:text-gray-400">
             <option value="">Select Category</option>
             {categories.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -285,7 +285,7 @@ export default function ProcessTrackerForm({
           </label>
           <select value={taskName} onChange={(e) => setTaskName(e.target.value)}
             disabled={!category}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087] disabled:bg-gray-100 disabled:text-gray-400">
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] disabled:bg-gray-100 disabled:text-gray-400">
             <option value="">Select Task</option>
             {tasks.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
@@ -297,7 +297,7 @@ export default function ProcessTrackerForm({
           </label>
           <input type="text" value={taskOwner} onChange={(e) => setTaskOwner(e.target.value)}
             placeholder="Your name"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087] bg-gray-50" />
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] bg-gray-50" />
           {initialProfile && (
             <p className="text-xs text-green-600 mt-1">✓ Auto-filled from your account</p>
           )}
@@ -307,7 +307,7 @@ export default function ProcessTrackerForm({
           <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
             placeholder="Optional notes about this task..." rows={3}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087] resize-none" />
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] resize-none" />
         </div>
 
         {errorMsg && (
@@ -319,7 +319,7 @@ export default function ProcessTrackerForm({
           className={`w-full py-3 rounded-lg font-semibold text-white transition-colors ${
             submitStatus === "success" ? "bg-green-600 cursor-default"
             : submitStatus === "loading" ? "bg-gray-400 cursor-not-allowed"
-            : "bg-[#003087] hover:bg-[#002060]"
+            : "bg-[#1A3C28] hover:bg-[#122B1C]"
           }`}>
           {submitStatus === "loading" ? "Saving..."
             : submitStatus === "success" ? "✓ Entry Saved!"
