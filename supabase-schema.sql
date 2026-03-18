@@ -1,5 +1,5 @@
 -- ============================================================
--- ePromos Order Entry Tracker — Supabase Schema
+-- ePromos Time Study — Supabase Schema
 -- Run this in the Supabase SQL Editor
 -- ============================================================
 

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import Image from "next/image";
+import Logo from "@/components/Logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,15 +35,9 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-3">
-            <Image
-              src="/epromos-logo.svg"
-              alt="ePromos"
-              width={220}
-              height={50}
-              priority
-            />
+            <Logo size="large" />
           </div>
-          <p className="text-gray-500 text-sm">Order Entry Tracker</p>
+          <p className="text-gray-500 text-sm">Time Study</p>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">

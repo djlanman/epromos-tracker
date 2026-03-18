@@ -1,4 +1,4 @@
-# ePromos Order Entry Tracker — Setup Guide
+# ePromos Time Study — Setup Guide
 
 ## Stack
 - **Next.js 14** (App Router, TypeScript)
@@ -22,7 +22,7 @@ Then in your terminal (from the folder containing `epromos-tracker/`):
 cd epromos-tracker
 git init
 git add .
-git commit -m "Initial commit: ePromos Order Entry Tracker"
+git commit -m "Initial commit: ePromos Time Study"
 git remote add origin https://github.com/YOUR_USERNAME/epromos-tracker.git
 git branch -M main
 git push -u origin main

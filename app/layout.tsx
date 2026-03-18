@@ -3,13 +3,13 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile } from "@/lib/supabase";
-import Image from "next/image";
+import Logo from "@/components/Logo";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "ePromos Order Entry Tracker",
-  description: "Time study and order entry process tracker for ePromos",
+  title: "ePromos Time Study",
+  description: "Time study and process tracker for ePromos",
 };
 
 export default async function RootLayout({
@@ -39,16 +39,7 @@ export default async function RootLayout({
           <header className="bg-[#1A3C28] text-white shadow-md">
             <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
               {/* Brand */}
-              <div className="flex items-center gap-3">
-                <Image
-                  src="/epromos-logo.svg"
-                  alt="ePromos"
-                  width={160}
-                  height={36}
-                  className="brightness-0 invert"
-                  priority
-                />
-              </div>
+              <Logo size="small" white />
 
               {/* Nav + User */}
               <div className="flex items-center gap-6">
