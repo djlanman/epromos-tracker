@@ -4,50 +4,63 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import type { Profile } from "@/lib/supabase";
 import type { TaskData } from "@/lib/taskData";
 
-type TimerState = "idle" | "running" | "stopped";
+// --- Types ---
+
+type SlotStatus = "running" | "paused" | "stopped";
+
+type TaskSlot = {
+  id: string;
+  status: SlotStatus;
+  elapsed: number; // accumulated seconds
+  startTime: Date | null; // when this slot was first started
+  lastResumed: number | null; // Date.now() when timer last resumed (for live ticking)
+  // Form fields
+  poNumber: string;
+  soNumber: string;
+  department: string;
+  role: string;
+  category: string;
+  taskName: string;
+  taskOwner: string;
+  notes: string;
+};
+
+const MAX_SLOTS = 5;
+
+function generateId() {
+  return Math.random().toString(36).slice(2, 9);
+}
+
+// --- Component ---
 
 export default function ProcessTrackerForm({
   initialProfile,
 }: {
   initialProfile: Profile | null;
 }) {
-  // Timer state
-  const [timerState, setTimerState] = useState<TimerState>("idle");
-  const [elapsed, setElapsed] = useState(0);
-  const [startTime, setStartTime] = useState<Date | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
   // Task hierarchy from database
   const [taskData, setTaskData] = useState<TaskData>({});
   const [taskDataLoading, setTaskDataLoading] = useState(true);
 
-  // Form state — initialized directly from server-fetched profile
-  const [poNumber, setPoNumber] = useState("");
-  const [soNumber, setSoNumber] = useState("");
-  const [department, setDepartment] = useState(initialProfile?.department ?? "");
-  const [role, setRole] = useState(initialProfile?.role ?? "");
-  const [category, setCategory] = useState("");
-  const [taskName, setTaskName] = useState("");
-  const [taskOwner, setTaskOwner] = useState(initialProfile?.name ?? "");
-  const [notes, setNotes] = useState("");
+  // Multi-task slots
+  const [slots, setSlots] = useState<TaskSlot[]>([]);
+  const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
 
   // UI state
-  const [submitStatus, setSubmitStatus] = useState<
-    "idle" | "loading" | "success" | "error"
-  >("idle");
+  const [submitStatus, setSubmitStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
+
+  // Tick ref for the running timer
+  const tickRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch task hierarchy from Supabase
   useEffect(() => {
     const fetchTaskData = async () => {
       try {
         const res = await fetch("/api/task-hierarchy");
-        if (res.ok) {
-          const data = await res.json();
-          setTaskData(data);
-        }
+        if (res.ok) setTaskData(await res.json());
       } catch {
-        // Fall back silently — dropdowns will be empty
+        // Fall back silently
       } finally {
         setTaskDataLoading(false);
       }
@@ -55,96 +68,173 @@ export default function ProcessTrackerForm({
     fetchTaskData();
   }, []);
 
-  // Derived dropdown options from database data
+  // Active slot helper
+  const activeSlot = slots.find((s) => s.id === activeSlotId) ?? null;
+
+  // Derived dropdown options for the active slot
   const departments = Object.keys(taskData);
-  const roles = department ? Object.keys(taskData[department] || {}) : [];
-  const categories = department && role ? Object.keys(taskData[department]?.[role] || {}) : [];
-  const tasks = department && role && category ? (taskData[department]?.[role]?.[category] || []) : [];
+  const roles = activeSlot?.department ? Object.keys(taskData[activeSlot.department] || {}) : [];
+  const categories =
+    activeSlot?.department && activeSlot?.role
+      ? Object.keys(taskData[activeSlot.department]?.[activeSlot.role] || {})
+      : [];
+  const tasks =
+    activeSlot?.department && activeSlot?.role && activeSlot?.category
+      ? taskData[activeSlot.department]?.[activeSlot.role]?.[activeSlot.category] || []
+      : [];
 
-  // Timer
-  const tick = useCallback(() => setElapsed((s) => s + 1), []);
-
-  const handleStart = () => {
-    setStartTime(new Date());
-    setElapsed(0);
-    setTimerState("running");
-    intervalRef.current = setInterval(tick, 1000);
-  };
-
-  const handleStop = () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    setTimerState("stopped");
-  };
-
-  const handleReset = () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    setTimerState("idle");
-    setElapsed(0);
-    setStartTime(null);
-  };
-
+  // --- Timer tick ---
+  // Single interval that ticks the running slot
   useEffect(() => {
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, []);
+    if (tickRef.current) clearInterval(tickRef.current);
 
-  // Only reset category/task when user manually changes department or role
-  const prevDept = useRef(initialProfile?.department ?? "");
-  const prevRole = useRef(initialProfile?.role ?? "");
+    const runningSlot = slots.find((s) => s.status === "running");
+    if (!runningSlot) return;
+
+    tickRef.current = setInterval(() => {
+      setSlots((prev) =>
+        prev.map((s) =>
+          s.id === runningSlot.id && s.status === "running"
+            ? { ...s, elapsed: s.elapsed + 1 }
+            : s
+        )
+      );
+    }, 1000);
+
+    return () => {
+      if (tickRef.current) clearInterval(tickRef.current);
+    };
+  }, [slots.find((s) => s.status === "running")?.id, slots.find((s) => s.status === "running")?.status]);
+
+  // --- Slot actions ---
+
+  const createNewSlot = () => {
+    if (slots.length >= MAX_SLOTS) {
+      setErrorMsg(`Maximum ${MAX_SLOTS} concurrent tasks allowed.`);
+      return;
+    }
+
+    // Auto-pause any running slot
+    setSlots((prev) =>
+      prev.map((s) => (s.status === "running" ? { ...s, status: "paused" as const } : s))
+    );
+
+    const newSlot: TaskSlot = {
+      id: generateId(),
+      status: "paused",
+      elapsed: 0,
+      startTime: null,
+      lastResumed: null,
+      poNumber: "",
+      soNumber: "",
+      department: initialProfile?.department ?? "",
+      role: initialProfile?.role ?? "",
+      category: "",
+      taskName: "",
+      taskOwner: initialProfile?.name ?? "",
+      notes: "",
+    };
+
+    setSlots((prev) => [...prev, newSlot]);
+    setActiveSlotId(newSlot.id);
+    setErrorMsg("");
+  };
+
+  const switchToSlot = (slotId: string) => {
+    setActiveSlotId(slotId);
+    setErrorMsg("");
+    setSubmitStatus("idle");
+  };
+
+  const startOrResumeSlot = (slotId: string) => {
+    setSlots((prev) =>
+      prev.map((s) => {
+        if (s.id === slotId) {
+          return {
+            ...s,
+            status: "running" as const,
+            startTime: s.startTime ?? new Date(),
+            lastResumed: Date.now(),
+          };
+        }
+        // Auto-pause any other running slot
+        if (s.status === "running") {
+          return { ...s, status: "paused" as const };
+        }
+        return s;
+      })
+    );
+    setActiveSlotId(slotId);
+    setErrorMsg("");
+  };
+
+  const pauseSlot = (slotId: string) => {
+    setSlots((prev) =>
+      prev.map((s) => (s.id === slotId ? { ...s, status: "paused" as const } : s))
+    );
+  };
+
+  const stopSlot = (slotId: string) => {
+    setSlots((prev) =>
+      prev.map((s) => (s.id === slotId ? { ...s, status: "stopped" as const } : s))
+    );
+  };
+
+  const discardSlot = (slotId: string) => {
+    setSlots((prev) => prev.filter((s) => s.id !== slotId));
+    if (activeSlotId === slotId) {
+      const remaining = slots.filter((s) => s.id !== slotId);
+      setActiveSlotId(remaining.length > 0 ? remaining[0].id : null);
+    }
+    setErrorMsg("");
+    setSubmitStatus("idle");
+  };
+
+  // Update a field on the active slot
+  const updateActiveSlot = (updates: Partial<TaskSlot>) => {
+    if (!activeSlotId) return;
+    setSlots((prev) =>
+      prev.map((s) => (s.id === activeSlotId ? { ...s, ...updates } : s))
+    );
+  };
 
   const handleDepartmentChange = (val: string) => {
-    setDepartment(val);
-    if (val !== prevDept.current) {
-      setRole("");
-      setCategory("");
-      setTaskName("");
-      prevDept.current = val;
+    if (!activeSlot) return;
+    if (val !== activeSlot.department) {
+      updateActiveSlot({ department: val, role: "", category: "", taskName: "" });
+    } else {
+      updateActiveSlot({ department: val });
     }
   };
 
   const handleRoleChange = (val: string) => {
-    setRole(val);
-    if (val !== prevRole.current) {
-      setCategory("");
-      setTaskName("");
-      prevRole.current = val;
+    if (!activeSlot) return;
+    if (val !== activeSlot.role) {
+      updateActiveSlot({ role: val, category: "", taskName: "" });
+    } else {
+      updateActiveSlot({ role: val });
     }
   };
 
-  const formatTime = (s: number) => {
-    const h = Math.floor(s / 3600).toString().padStart(2, "0");
-    const m = Math.floor((s % 3600) / 60).toString().padStart(2, "0");
-    const sec = (s % 60).toString().padStart(2, "0");
-    return `${h}:${m}:${sec}`;
-  };
-
-  const resetForm = () => {
-    setPoNumber("");
-    setSoNumber("");
-    setCategory("");
-    setTaskName("");
-    setNotes("");
-    setElapsed(0);
-    setStartTime(null);
-    setTimerState("idle");
-    setSubmitStatus("idle");
-    setDepartment(initialProfile?.department ?? "");
-    setRole(initialProfile?.role ?? "");
-    setTaskOwner(initialProfile?.name ?? "");
-  };
-
+  // --- Submit ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!department || !role || !category || !taskName || !taskOwner) {
+    if (!activeSlot) return;
+
+    if (!activeSlot.department || !activeSlot.role || !activeSlot.category || !activeSlot.taskName || !activeSlot.taskOwner) {
       setErrorMsg("Please fill in all required fields.");
       return;
     }
-    if (timerState === "idle") {
-      setErrorMsg("Please start and stop the timer before submitting.");
+    if (activeSlot.elapsed === 0 && activeSlot.status === "paused" && !activeSlot.startTime) {
+      setErrorMsg("Please start the timer before submitting.");
       return;
     }
 
-    const finalElapsed = elapsed;
-    if (timerState === "running") handleStop();
+    // Stop the timer if still running
+    if (activeSlot.status === "running") {
+      stopSlot(activeSlot.id);
+    }
+
     setSubmitStatus("loading");
     setErrorMsg("");
 
@@ -153,179 +243,339 @@ export default function ProcessTrackerForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          po_number: poNumber || null,
-          so_number: soNumber || null,
-          department,
-          role,
-          task_category: category,
-          task_name: taskName,
-          task_owner: taskOwner,
-          notes: notes || null,
-          start_time: startTime?.toISOString() ?? null,
+          po_number: activeSlot.poNumber || null,
+          so_number: activeSlot.soNumber || null,
+          department: activeSlot.department,
+          role: activeSlot.role,
+          task_category: activeSlot.category,
+          task_name: activeSlot.taskName,
+          task_owner: activeSlot.taskOwner,
+          notes: activeSlot.notes || null,
+          start_time: activeSlot.startTime?.toISOString() ?? null,
           end_time: new Date().toISOString(),
-          duration_seconds: finalElapsed,
+          duration_seconds: activeSlot.elapsed,
         }),
       });
       if (!res.ok) throw new Error("Failed to save entry");
       setSubmitStatus("success");
-      setTimeout(resetForm, 2000);
+      setTimeout(() => {
+        discardSlot(activeSlot.id);
+        setSubmitStatus("idle");
+      }, 1500);
     } catch {
       setSubmitStatus("error");
       setErrorMsg("Failed to save entry. Please try again.");
     }
   };
 
+  // --- Formatting ---
+  const formatTime = (s: number) => {
+    const h = Math.floor(s / 3600).toString().padStart(2, "0");
+    const m = Math.floor((s % 3600) / 60).toString().padStart(2, "0");
+    const sec = (s % 60).toString().padStart(2, "0");
+    return `${h}:${m}:${sec}`;
+  };
+
+  const formatTimeShort = (s: number) => {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${sec}s`;
+    return `${sec}s`;
+  };
+
+  const getSlotLabel = (slot: TaskSlot) => {
+    if (slot.taskName) return slot.taskName;
+    if (slot.category) return slot.category;
+    if (slot.role) return slot.role;
+    if (slot.department) return slot.department;
+    return "New Task";
+  };
+
+  // Timer display color for active slot
   const timerColor =
-    timerState === "running"
+    activeSlot?.status === "running"
       ? "text-green-600"
-      : timerState === "stopped"
+      : activeSlot?.status === "stopped"
       ? "text-[#1A3C28]"
+      : activeSlot?.status === "paused"
+      ? "text-amber-600"
       : "text-gray-400";
 
   return (
     <div className="max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold text-[#1A3C28] mb-6">Process Tracker</h1>
 
-      {/* Timer */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Timer</h2>
-        <div className={`text-6xl font-mono font-bold text-center mb-5 ${timerColor}`}>
-          {formatTime(elapsed)}
-        </div>
-        <div className="flex justify-center gap-3">
-          {timerState === "idle" && (
-            <button onClick={handleStart} className="px-6 py-2.5 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors">
-              ▶ Start
-            </button>
-          )}
-          {timerState === "running" && (
-            <button onClick={handleStop} className="px-6 py-2.5 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors">
-              ■ Stop
-            </button>
-          )}
-          {timerState === "stopped" && (
-            <>
-              <button onClick={handleStart} className="px-6 py-2.5 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors">
-                ▶ Restart
-              </button>
-              <button onClick={handleReset} className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors">
-                ↺ Reset
-              </button>
-            </>
-          )}
-        </div>
-        {startTime && (
-          <p className="text-center text-xs text-gray-400 mt-3">
-            Started at {startTime.toLocaleTimeString()}
-          </p>
+      {/* Task Slot Cards */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {slots.map((slot) => (
+          <button
+            key={slot.id}
+            onClick={() => switchToSlot(slot.id)}
+            className={`relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-all ${
+              slot.id === activeSlotId
+                ? slot.status === "running"
+                  ? "bg-green-50 border-green-500 text-green-800 shadow-sm"
+                  : slot.status === "paused"
+                  ? "bg-amber-50 border-amber-400 text-amber-800 shadow-sm"
+                  : "bg-gray-50 border-[#1A3C28] text-[#1A3C28] shadow-sm"
+                : "bg-white border-gray-200 text-gray-600 hover:border-gray-400"
+            }`}
+          >
+            {/* Status indicator dot */}
+            <span
+              className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                slot.status === "running"
+                  ? "bg-green-500 animate-pulse"
+                  : slot.status === "paused"
+                  ? "bg-amber-400"
+                  : "bg-gray-400"
+              }`}
+            />
+            <span className="truncate max-w-[120px]">{getSlotLabel(slot)}</span>
+            <span className="font-mono text-xs opacity-70">{formatTimeShort(slot.elapsed)}</span>
+          </button>
+        ))}
+
+        {/* New Task button */}
+        {slots.length < MAX_SLOTS && (
+          <button
+            onClick={createNewSlot}
+            className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium border border-dashed border-gray-300 text-gray-500 hover:border-[#1A3C28] hover:text-[#1A3C28] transition-colors"
+          >
+            + New Task
+          </button>
         )}
       </div>
 
-      {/* Entry Form */}
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Entry Details</h2>
+      {/* Empty state */}
+      {slots.length === 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+          <p className="text-gray-400 mb-4">No active tasks. Start one to begin tracking time.</p>
+          <button
+            onClick={createNewSlot}
+            className="px-6 py-2.5 bg-[#1A3C28] text-white rounded-lg font-semibold hover:bg-[#122B1C] transition-colors"
+          >
+            + Start a Task
+          </button>
+        </div>
+      )}
 
-        {taskDataLoading && (
-          <p className="text-sm text-gray-400">Loading task options...</p>
-        )}
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">PO Number</label>
-            <input type="text" value={poNumber} onChange={(e) => setPoNumber(e.target.value)}
-              placeholder="e.g. PO-123456"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]" />
+      {/* Active slot content */}
+      {activeSlot && (
+        <>
+          {/* Timer */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Timer</h2>
+              {activeSlot.status === "paused" && activeSlot.elapsed > 0 && (
+                <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+                  Paused
+                </span>
+              )}
+              {activeSlot.status === "running" && (
+                <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full animate-pulse">
+                  Recording
+                </span>
+              )}
+              {activeSlot.status === "stopped" && (
+                <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                  Stopped
+                </span>
+              )}
+            </div>
+            <div className={`text-6xl font-mono font-bold text-center mb-5 ${timerColor}`}>
+              {formatTime(activeSlot.elapsed)}
+            </div>
+            <div className="flex justify-center gap-3">
+              {/* Not started yet */}
+              {activeSlot.status === "paused" && activeSlot.elapsed === 0 && !activeSlot.startTime && (
+                <button
+                  onClick={() => startOrResumeSlot(activeSlot.id)}
+                  className="px-6 py-2.5 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                >
+                  ▶ Start
+                </button>
+              )}
+              {/* Running */}
+              {activeSlot.status === "running" && (
+                <>
+                  <button
+                    onClick={() => pauseSlot(activeSlot.id)}
+                    className="px-6 py-2.5 bg-amber-500 text-white rounded-lg font-semibold hover:bg-amber-600 transition-colors"
+                  >
+                    ⏸ Pause
+                  </button>
+                  <button
+                    onClick={() => stopSlot(activeSlot.id)}
+                    className="px-6 py-2.5 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors"
+                  >
+                    ■ Stop
+                  </button>
+                </>
+              )}
+              {/* Paused (with time) */}
+              {activeSlot.status === "paused" && (activeSlot.elapsed > 0 || activeSlot.startTime) && (
+                <>
+                  <button
+                    onClick={() => startOrResumeSlot(activeSlot.id)}
+                    className="px-6 py-2.5 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                  >
+                    ▶ Resume
+                  </button>
+                  <button
+                    onClick={() => stopSlot(activeSlot.id)}
+                    className="px-6 py-2.5 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors"
+                  >
+                    ■ Stop
+                  </button>
+                  <button
+                    onClick={() => discardSlot(activeSlot.id)}
+                    className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                  >
+                    ✕ Discard
+                  </button>
+                </>
+              )}
+              {/* Stopped */}
+              {activeSlot.status === "stopped" && (
+                <>
+                  <button
+                    onClick={() => startOrResumeSlot(activeSlot.id)}
+                    className="px-6 py-2.5 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                  >
+                    ▶ Resume
+                  </button>
+                  <button
+                    onClick={() => discardSlot(activeSlot.id)}
+                    className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                  >
+                    ✕ Discard
+                  </button>
+                </>
+              )}
+            </div>
+            {activeSlot.startTime && (
+              <p className="text-center text-xs text-gray-400 mt-3">
+                Started at {activeSlot.startTime.toLocaleTimeString()}
+              </p>
+            )}
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">SO Number</label>
-            <input type="text" value={soNumber} onChange={(e) => setSoNumber(e.target.value)}
-              placeholder="e.g. SO-789012"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]" />
-          </div>
-        </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Department <span className="text-red-500">*</span>
-          </label>
-          <select value={department} onChange={(e) => handleDepartmentChange(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]">
-            <option value="">Select Department</option>
-            {departments.map((d) => <option key={d} value={d}>{d}</option>)}
-          </select>
-        </div>
+          {/* Entry Form */}
+          <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Entry Details</h2>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Role <span className="text-red-500">*</span>
-          </label>
-          <select value={role} onChange={(e) => handleRoleChange(e.target.value)}
-            disabled={!department}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] disabled:bg-gray-100 disabled:text-gray-400">
-            <option value="">Select Role</option>
-            {roles.map((r) => <option key={r} value={r}>{r}</option>)}
-          </select>
-        </div>
+            {taskDataLoading && (
+              <p className="text-sm text-gray-400">Loading task options...</p>
+            )}
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Task Category <span className="text-red-500">*</span>
-          </label>
-          <select value={category} onChange={(e) => { setCategory(e.target.value); setTaskName(""); }}
-            disabled={!role}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] disabled:bg-gray-100 disabled:text-gray-400">
-            <option value="">Select Category</option>
-            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">PO Number</label>
+                <input type="text" value={activeSlot.poNumber}
+                  onChange={(e) => updateActiveSlot({ poNumber: e.target.value })}
+                  placeholder="e.g. PO-123456"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">SO Number</label>
+                <input type="text" value={activeSlot.soNumber}
+                  onChange={(e) => updateActiveSlot({ soNumber: e.target.value })}
+                  placeholder="e.g. SO-789012"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]" />
+              </div>
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Task Name <span className="text-red-500">*</span>
-          </label>
-          <select value={taskName} onChange={(e) => setTaskName(e.target.value)}
-            disabled={!category}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] disabled:bg-gray-100 disabled:text-gray-400">
-            <option value="">Select Task</option>
-            {tasks.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Department <span className="text-red-500">*</span>
+              </label>
+              <select value={activeSlot.department} onChange={(e) => handleDepartmentChange(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]">
+                <option value="">Select Department</option>
+                {departments.map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Task Owner <span className="text-red-500">*</span>
-          </label>
-          <input type="text" value={taskOwner} onChange={(e) => setTaskOwner(e.target.value)}
-            placeholder="Your name"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] bg-gray-50" />
-          {initialProfile && (
-            <p className="text-xs text-green-600 mt-1">✓ Auto-filled from your account</p>
-          )}
-        </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Role <span className="text-red-500">*</span>
+              </label>
+              <select value={activeSlot.role} onChange={(e) => handleRoleChange(e.target.value)}
+                disabled={!activeSlot.department}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] disabled:bg-gray-100 disabled:text-gray-400">
+                <option value="">Select Role</option>
+                {roles.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
-            placeholder="Optional notes about this task..." rows={3}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] resize-none" />
-        </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Task Category <span className="text-red-500">*</span>
+              </label>
+              <select value={activeSlot.category}
+                onChange={(e) => updateActiveSlot({ category: e.target.value, taskName: "" })}
+                disabled={!activeSlot.role}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] disabled:bg-gray-100 disabled:text-gray-400">
+                <option value="">Select Category</option>
+                {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
 
-        {errorMsg && (
-          <p className="text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2">{errorMsg}</p>
-        )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Task Name <span className="text-red-500">*</span>
+              </label>
+              <select value={activeSlot.taskName}
+                onChange={(e) => updateActiveSlot({ taskName: e.target.value })}
+                disabled={!activeSlot.category}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] disabled:bg-gray-100 disabled:text-gray-400">
+                <option value="">Select Task</option>
+                {tasks.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
 
-        <button type="submit"
-          disabled={submitStatus === "loading" || submitStatus === "success"}
-          className={`w-full py-3 rounded-lg font-semibold text-white transition-colors ${
-            submitStatus === "success" ? "bg-green-600 cursor-default"
-            : submitStatus === "loading" ? "bg-gray-400 cursor-not-allowed"
-            : "bg-[#1A3C28] hover:bg-[#122B1C]"
-          }`}>
-          {submitStatus === "loading" ? "Saving..."
-            : submitStatus === "success" ? "✓ Entry Saved!"
-            : "Submit Entry"}
-        </button>
-      </form>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Task Owner <span className="text-red-500">*</span>
+              </label>
+              <input type="text" value={activeSlot.taskOwner}
+                onChange={(e) => updateActiveSlot({ taskOwner: e.target.value })}
+                placeholder="Your name"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] bg-gray-50" />
+              {initialProfile && (
+                <p className="text-xs text-green-600 mt-1">✓ Auto-filled from your account</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <textarea value={activeSlot.notes}
+                onChange={(e) => updateActiveSlot({ notes: e.target.value })}
+                placeholder="Optional notes about this task..." rows={3}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] resize-none" />
+            </div>
+
+            {errorMsg && (
+              <p className="text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2">{errorMsg}</p>
+            )}
+
+            <button type="submit"
+              disabled={submitStatus === "loading" || submitStatus === "success"}
+              className={`w-full py-3 rounded-lg font-semibold text-white transition-colors ${
+                submitStatus === "success" ? "bg-green-600 cursor-default"
+                : submitStatus === "loading" ? "bg-gray-400 cursor-not-allowed"
+                : "bg-[#1A3C28] hover:bg-[#122B1C]"
+              }`}>
+              {submitStatus === "loading" ? "Saving..."
+                : submitStatus === "success" ? "✓ Entry Saved!"
+                : "Submit Entry"}
+            </button>
+          </form>
+        </>
+      )}
     </div>
   );
 }
