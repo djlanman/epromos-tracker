@@ -56,7 +56,7 @@ function downloadCSV(csv: string, filename: string) {
 }
 
 // ── Types ───────────────────────────────────────────────────
-type Tab = "dashboard" | "benchmarks" | "outliers" | "rollup";
+type Tab = "dashboard" | "entries" | "benchmarks" | "outliers" | "rollup";
 type Granularity = "week" | "month";
 
 type BenchmarkRow = { department: string; role: string; category: string; taskName: string; owner: string; entryCount: number; avgSeconds: number; minSeconds: number; maxSeconds: number; stddevSeconds: number; totalSeconds: number };
@@ -79,6 +79,18 @@ export default function ReportsPage() {
   const [fDateFrom, setFDateFrom] = useState("");
   const [fDateTo, setFDateTo] = useState("");
   const [granularity, setGranularity] = useState<Granularity>("week");
+
+  // Drill-down: clicking a chart element sets filters and shows entries
+  const drillTo = (filters: { category?: string; task?: string; owner?: string; dept?: string; role?: string; dateFrom?: string; dateTo?: string }) => {
+    if (filters.category !== undefined) setFCategory(filters.category);
+    if (filters.task !== undefined) setFTask(filters.task);
+    if (filters.owner !== undefined) setFOwner(filters.owner);
+    if (filters.dept !== undefined) setFDept(filters.dept);
+    if (filters.role !== undefined) setFRole(filters.role);
+    if (filters.dateFrom !== undefined) setFDateFrom(filters.dateFrom);
+    if (filters.dateTo !== undefined) setFDateTo(filters.dateTo);
+    setTab("entries");
+  };
 
   useEffect(() => {
     const check = async () => {
@@ -285,8 +297,15 @@ export default function ReportsPage() {
   const hasFilters = fDept || fRole || fCategory || fTask || fOwner || fDateFrom || fDateTo;
   const clearFilters = () => { setFDept(""); setFRole(""); setFCategory(""); setFTask(""); setFOwner(""); setFDateFrom(""); setFDateTo(""); };
   const sel = "border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]";
+  const exportEntriesCSV = () => {
+    const h = ["Date", "Owner", "Department", "Role", "Category", "Task", "PO #", "SO #", "Duration (s)", "Duration (min)", "Duration (hrs)", "Notes"];
+    const rows = filtered.map((e) => [new Date(e.created_at).toISOString().slice(0, 19), e.task_owner, e.department, e.role, e.task_category, e.task_name, e.po_number || "", e.so_number || "", String(e.duration_seconds || 0), mins(e.duration_seconds || 0), hrs(e.duration_seconds || 0), e.notes || ""]);
+    downloadCSV([h, ...rows].map((r) => r.map(escapeCSV).join(",")).join("\n"), "filtered-entries.csv");
+  };
+
   const tabs: { key: Tab; label: string; badge?: number }[] = [
     { key: "dashboard", label: "Dashboard" },
+    { key: "entries", label: "Entries" },
     { key: "benchmarks", label: "Benchmarks" },
     { key: "outliers", label: "Outliers", badge: outliers.length },
     { key: "rollup", label: "Dept / Role" },
@@ -333,7 +352,7 @@ export default function ReportsPage() {
             </button>
           ))}
         </div>
-        <button onClick={tab === "dashboard" ? exportDashboardCSV : tab === "benchmarks" ? exportBenchmarkCSV : tab === "outliers" ? exportOutlierCSV : exportRollupCSV}
+        <button onClick={tab === "dashboard" ? exportDashboardCSV : tab === "entries" ? exportEntriesCSV : tab === "benchmarks" ? exportBenchmarkCSV : tab === "outliers" ? exportOutlierCSV : exportRollupCSV}
           disabled={filtered.length === 0} className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-40">Export CSV</button>
       </div>
 
@@ -372,12 +391,12 @@ export default function ReportsPage() {
               {categoryBreakdown.slice(0, 8).map((c, i) => {
                 const pct = (c.seconds / catTotal) * 100;
                 return (
-                  <div key={c.name}>
+                  <div key={c.name} onClick={() => drillTo({ category: c.name })} className="cursor-pointer group">
                     <div className="flex justify-between text-xs mb-1">
-                      <span className="text-gray-700 font-medium truncate max-w-[60%]">{c.name}</span>
+                      <span className="text-gray-700 font-medium truncate max-w-[60%] group-hover:text-[#6366F1] group-hover:underline">{c.name}</span>
                       <span className="text-gray-500">{hrs(c.seconds)}h ({pct.toFixed(1)}%)</span>
                     </div>
-                    <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-3 bg-gray-100 rounded-full overflow-hidden group-hover:ring-2 group-hover:ring-[#6366F1]/30 transition-all">
                       <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(pct, 1)}%`, backgroundColor: colorFor(i) }} />
                     </div>
                   </div>
@@ -392,14 +411,14 @@ export default function ReportsPage() {
             <h3 className="text-sm font-semibold text-gray-700 mb-4">Top 10 Tasks by Total Time</h3>
             <div className="space-y-2">
               {topTasks.map((t, i) => (
-                <div key={t.name} className="flex items-center gap-3">
+                <div key={t.name} onClick={() => drillTo({ task: t.name })} className="flex items-center gap-3 cursor-pointer group">
                   <span className="text-xs font-bold w-5 text-gray-400">{i + 1}</span>
                   <div className="flex-1">
                     <div className="flex justify-between text-xs mb-0.5">
-                      <span className="text-gray-700 font-medium truncate max-w-[55%]">{t.name}</span>
+                      <span className="text-gray-700 font-medium truncate max-w-[55%] group-hover:text-[#6366F1] group-hover:underline">{t.name}</span>
                       <span className="text-gray-500">{hrs(t.total)}h · {t.count} entries</span>
                     </div>
-                    <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden group-hover:ring-2 group-hover:ring-[#6366F1]/30 transition-all">
                       <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(t.total / maxTaskTotal) * 100}%`, backgroundColor: colorFor(i) }} />
                     </div>
                   </div>
@@ -417,16 +436,16 @@ export default function ReportsPage() {
             <h3 className="text-sm font-semibold text-gray-700 mb-4">User Leaderboard</h3>
             <div className="space-y-3">
               {userLeaderboard.slice(0, 10).map((u, i) => (
-                <div key={u.name} className="flex items-center gap-3">
+                <div key={u.name} onClick={() => drillTo({ owner: u.name })} className="flex items-center gap-3 cursor-pointer group">
                   <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0`} style={{ backgroundColor: colorFor(i) }}>
                     {i + 1}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between">
-                      <span className="text-sm font-medium text-gray-800 truncate">{u.name}</span>
+                      <span className="text-sm font-medium text-gray-800 truncate group-hover:text-[#6366F1] group-hover:underline">{u.name}</span>
                       <span className="text-xs text-gray-500 ml-2 flex-shrink-0">{hrs(u.total)}h</span>
                     </div>
-                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mt-1">
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mt-1 group-hover:ring-2 group-hover:ring-[#6366F1]/30 transition-all">
                       <div className="h-full rounded-full" style={{ width: `${(u.total / maxUserTotal) * 100}%`, backgroundColor: colorFor(i) }} />
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5">{u.count} entries · avg {mins(u.avg)} min</p>
@@ -485,10 +504,15 @@ export default function ReportsPage() {
             {trendData.map((t, i) => {
               const prev = i > 0 ? trendData[i - 1].avg : null;
               const change = prev ? ((t.avg - prev) / prev * 100) : null;
+              // Compute date range for this period
+              const periodFrom = t.period;
+              const periodTo = granularity === "week"
+                ? new Date(new Date(t.period).getTime() + 6 * 86400000).toISOString().slice(0, 10)
+                : t.period + "-31"; // month end approximation
               return (
-                <div key={t.period} className="flex items-center gap-3">
-                  <span className="text-xs text-gray-500 w-20 flex-shrink-0 font-mono">{t.period}</span>
-                  <div className="flex-1 h-6 bg-gray-100 rounded-md overflow-hidden relative">
+                <div key={t.period} onClick={() => drillTo({ dateFrom: periodFrom, dateTo: periodTo })} className="flex items-center gap-3 cursor-pointer group">
+                  <span className="text-xs text-gray-500 w-20 flex-shrink-0 font-mono group-hover:text-[#6366F1] group-hover:underline">{t.period}</span>
+                  <div className="flex-1 h-6 bg-gray-100 rounded-md overflow-hidden relative group-hover:ring-2 group-hover:ring-[#6366F1]/30 transition-all">
                     <div className="h-full rounded-md transition-all duration-500" style={{ width: `${Math.max((t.avg / maxTrendAvg) * 100, 2)}%`, backgroundColor: "#6366F1" }} />
                   </div>
                   <span className="text-xs font-mono text-gray-600 w-16 text-right">{mins(t.avg)}m</span>
@@ -502,6 +526,45 @@ export default function ReportsPage() {
           </div>
         </div>
 
+      </div>)}
+
+      {/* ═══════ ENTRIES (drill-down) ═══════ */}
+      {tab === "entries" && (<div>
+        <div className="flex items-center gap-3 mb-4">
+          <button onClick={() => { clearFilters(); setTab("dashboard"); }}
+            className="text-sm text-[#6366F1] hover:underline font-medium">← Back to Dashboard</button>
+          {hasFilters && <span className="text-xs text-gray-400">Showing filtered entries</span>}
+        </div>
+        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3">Date</th><th className="px-4 py-3">Owner</th><th className="px-4 py-3">Dept</th>
+              <th className="px-4 py-3">Role</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Task</th>
+              <th className="px-4 py-3">PO #</th><th className="px-4 py-3">SO #</th><th className="px-4 py-3 text-right">Duration</th><th className="px-4 py-3">Notes</th>
+            </tr></thead>
+            <tbody className="divide-y divide-gray-100">
+              {filtered.map((e) => (
+                <tr key={e.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 whitespace-nowrap text-gray-500">{new Date(e.created_at).toLocaleString()}</td>
+                  <td className="px-4 py-3 font-medium">{e.task_owner}</td>
+                  <td className="px-4 py-3 text-gray-600">{e.department}</td>
+                  <td className="px-4 py-3 text-gray-600">{e.role}</td>
+                  <td className="px-4 py-3 text-gray-600">{e.task_category}</td>
+                  <td className="px-4 py-3 font-medium text-[#6366F1]">{e.task_name}</td>
+                  <td className="px-4 py-3 text-gray-500">{e.po_number || "—"}</td>
+                  <td className="px-4 py-3 text-gray-500">{e.so_number || "—"}</td>
+                  <td className="px-4 py-3 text-right font-mono font-semibold text-indigo-600">{fmt(e.duration_seconds || 0)}</td>
+                  <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{e.notes || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot><tr className="bg-gray-50 font-semibold text-sm">
+              <td className="px-4 py-3 text-gray-600" colSpan={8}>Total ({filtered.length} entries)</td>
+              <td className="px-4 py-3 text-right font-mono text-indigo-600">{fmt(totalSeconds)}</td>
+              <td className="px-4 py-3 text-gray-400 text-xs">{hrs(totalSeconds)} hrs</td>
+            </tr></tfoot>
+          </table>
+        </div>
       </div>)}
 
       {/* ═══════ BENCHMARKS ═══════ */}
@@ -518,10 +581,10 @@ export default function ReportsPage() {
                 const gKey = `${b.department}||${b.category}||${b.taskName}`; const g = taskAverages.get(gKey);
                 const variance = g ? ((b.avgSeconds - g.globalAvg) / (g.globalAvg || 1)) * 100 : 0;
                 return (
-                  <tr key={i} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-[#6366F1]">{b.taskName}</td>
+                  <tr key={i} onClick={() => drillTo({ task: b.taskName, owner: b.owner, category: b.category })} className="hover:bg-indigo-50 cursor-pointer">
+                    <td className="px-4 py-3 font-medium text-[#6366F1] hover:underline">{b.taskName}</td>
                     <td className="px-4 py-3 text-gray-500">{b.category}</td>
-                    <td className="px-4 py-3 font-medium">{b.owner}</td>
+                    <td className="px-4 py-3 font-medium hover:underline">{b.owner}</td>
                     <td className="px-4 py-3 text-right text-gray-600">{b.entryCount}</td>
                     <td className="px-4 py-3 text-right font-mono font-semibold text-indigo-600">{fmt(b.avgSeconds)}</td>
                     <td className="px-4 py-3 text-right font-mono text-gray-500">{fmt(b.minSeconds)}</td>
@@ -575,8 +638,8 @@ export default function ReportsPage() {
           </tr></thead>
           <tbody className="divide-y divide-gray-100">
             {rollup.map((r, i) => (
-              <tr key={i} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium">{r.department}</td><td className="px-4 py-3 text-gray-600">{r.role}</td>
+              <tr key={i} onClick={() => drillTo({ dept: r.department, role: r.role })} className="hover:bg-indigo-50 cursor-pointer">
+                <td className="px-4 py-3 font-medium hover:text-[#6366F1] hover:underline">{r.department}</td><td className="px-4 py-3 text-gray-600">{r.role}</td>
                 <td className="px-4 py-3 text-right">{r.entryCount}</td>
                 <td className="px-4 py-3 text-right font-mono font-semibold text-indigo-600">{fmt(r.totalSeconds)}</td>
                 <td className="px-4 py-3 text-right font-mono text-gray-500">{hrs(r.totalSeconds)}</td>
