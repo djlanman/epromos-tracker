@@ -1,14 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 80" fill="none">
-  <!-- Globe/e icon -->
-  <g transform="translate(0, 5)">
-    <circle cx="35" cy="35" r="30" stroke="#1A3C28" stroke-width="5" fill="none"/>
-    <ellipse cx="35" cy="35" rx="18" ry="30" stroke="#1A3C28" stroke-width="4" fill="none"/>
-    <line x1="5" y1="35" x2="65" y2="35" stroke="#1A3C28" stroke-width="4"/>
-    <path d="M 20 18 Q 35 14 50 18" stroke="#1A3C28" stroke-width="3" fill="none"/>
-    <path d="M 18 52 Q 35 56 52 52" stroke="#1A3C28" stroke-width="3" fill="none"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 100" fill="none">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@900&amp;display=swap');
+    </style>
+  </defs>
+  <!-- Globe mark: two overlapping circles forming the "e" -->
+  <g transform="translate(10, 8)">
+    <!-- Main outer circle -->
+    <circle cx="42" cy="42" r="38" stroke="#1B3C21" stroke-width="6.5" fill="none"/>
+    <!-- Inner offset circle (creates the overlapping globe/e effect) -->
+    <circle cx="32" cy="42" r="24" stroke="#1B3C21" stroke-width="5" fill="none"/>
+    <!-- Lower arc connecting the two circles -->
+    <path d="M 14 58 Q 42 78 70 58" stroke="#1B3C21" stroke-width="5" fill="none"/>
   </g>
-  <!-- Text -->
-  <text x="75" y="58" font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900" font-size="56" fill="#1A3C28" letter-spacing="2">
+  <!-- Text: ePROMOS -->
+  <text x="105" y="74" font-family="'Inter', 'Arial Black', 'Helvetica Neue', Arial, sans-serif" font-weight="900" font-size="72" fill="#1B3C21" letter-spacing="3">
     <tspan font-style="italic">e</tspan>PROMOS
   </text>
 </svg>
