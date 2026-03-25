@@ -33,20 +33,29 @@ export async function GET(req: NextRequest) {
   const { data: profiles, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Fetch emails from auth.users using service role
+  // Fetch emails from auth.users using service role with pagination
   const serviceClient = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  const { data: authUsersResponse } = await serviceClient.auth.admin.listUsers({
-    perPage: 1000,
-  });
-
   const emailMap = new Map<string, string>();
-  if (authUsersResponse?.users) {
-    for (const u of authUsersResponse.users) {
-      if (u.email) emailMap.set(u.id, u.email);
+  let page = 1;
+  const perPage = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data: authUsersResponse, error: authError } =
+      await serviceClient.auth.admin.listUsers({ page, perPage });
+
+    if (authError || !authUsersResponse?.users?.length) {
+      hasMore = false;
+    } else {
+      for (const u of authUsersResponse.users) {
+        if (u.email) emailMap.set(u.id, u.email);
+      }
+      hasMore = authUsersResponse.users.length === perPage;
+      page++;
     }
   }
 
