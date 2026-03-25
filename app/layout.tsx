@@ -37,7 +37,7 @@ export default async function RootLayout({
       <body className={inter.className}>
         {user && (
           <header className="bg-[#1A3C28] text-white shadow-md">
-            <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
               {/* Brand */}
               <Logo size="small" white />
 
@@ -91,7 +91,7 @@ export default async function RootLayout({
           </header>
         )}
 
-        <main className={user ? "max-w-6xl mx-auto px-4 py-8" : ""}>
+        <main className={user ? "max-w-7xl mx-auto px-4 py-8" : ""}>
           {children}
         </main>
       </body>
