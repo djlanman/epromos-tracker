@@ -1,12 +1,20 @@
+export type TaskInfo = {
+  name: string;
+  showOrderType: boolean;
+  showLineItems: boolean;
+};
+
 export type TaskData = {
   [department: string]: {
     [role: string]: {
-      [category: string]: string[];
+      [category: string]: TaskInfo[];
     };
   };
 };
 
-export const TASK_DATA: TaskData = {
+// Legacy static fallback data — no longer used since data comes from Supabase.
+// Kept for reference only. Type assertion used to avoid updating hundreds of entries.
+export const TASK_DATA: Record<string, Record<string, Record<string, string[]>>> = {
   Sales: {
     "Enterprise Business Managers": {
       "Communication & Reporting": [

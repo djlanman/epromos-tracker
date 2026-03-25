@@ -191,7 +191,7 @@ export default function EntryLog() {
   };
 
   const exportDetailCSV = () => {
-    const headers = ["Date", "Owner", "Department", "Role", "Category", "Task", "PO #", "SO #", "Duration (seconds)", "Duration (minutes)", "Duration (hours)", "Notes"];
+    const headers = ["Date", "Owner", "Department", "Role", "Category", "Task", "PO #", "SO #", "Quote #", "Order Type", "# of Line Items", "Duration (seconds)", "Duration (minutes)", "Duration (hours)", "Notes"];
     const rows = filtered.map((e) => [
       formatDateCSV(e.created_at),
       e.task_owner,
@@ -201,6 +201,9 @@ export default function EntryLog() {
       e.task_name,
       e.po_number || "",
       e.so_number || "",
+      e.quote_number || "",
+      e.order_type || "",
+      e.line_item_count != null ? String(e.line_item_count) : "",
       String(e.duration_seconds || 0),
       ((e.duration_seconds || 0) / 60).toFixed(2),
       formatDurationDecimal(e.duration_seconds),
@@ -373,6 +376,9 @@ export default function EntryLog() {
                 <th className="px-4 py-3">Task</th>
                 <th className="px-4 py-3">PO #</th>
                 <th className="px-4 py-3">SO #</th>
+                <th className="px-4 py-3">Quote #</th>
+                <th className="px-4 py-3">Order Type</th>
+                <th className="px-4 py-3">Line Items</th>
                 <th className="px-4 py-3">Duration</th>
                 <th className="px-4 py-3">Notes</th>
                 <th className="px-4 py-3"></th>
@@ -389,6 +395,9 @@ export default function EntryLog() {
                   <td className="px-4 py-3 font-medium text-[#1A3C28]">{entry.task_name}</td>
                   <td className="px-4 py-3 text-gray-500">{entry.po_number || "—"}</td>
                   <td className="px-4 py-3 text-gray-500">{entry.so_number || "—"}</td>
+                  <td className="px-4 py-3 text-gray-500">{entry.quote_number || "—"}</td>
+                  <td className="px-4 py-3 text-gray-500">{entry.order_type || "—"}</td>
+                  <td className="px-4 py-3 text-gray-500">{entry.line_item_count != null ? entry.line_item_count : "—"}</td>
                   <td className="px-4 py-3 font-mono text-green-700 font-semibold">{formatDuration(entry.duration_seconds)}</td>
                   <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{entry.notes || "—"}</td>
                   <td className="px-4 py-3">
@@ -402,7 +411,7 @@ export default function EntryLog() {
             </tbody>
             <tfoot>
               <tr className="bg-gray-50 font-semibold text-sm">
-                <td className="px-4 py-3 text-gray-600" colSpan={8}>
+                <td className="px-4 py-3 text-gray-600" colSpan={11}>
                   Total ({filtered.length} entries)
                 </td>
                 <td className="px-4 py-3 font-mono text-green-700">{formatDuration(totalTime)}</td>

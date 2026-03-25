@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Profile } from "@/lib/supabase";
-import type { TaskData } from "@/lib/taskData";
+import type { TaskData, TaskInfo } from "@/lib/taskData";
 
 // --- Types ---
 
@@ -17,12 +17,15 @@ type TaskSlot = {
   // Form fields
   poNumber: string;
   soNumber: string;
+  quoteNumber: string;
   department: string;
   role: string;
   category: string;
   taskName: string;
   taskOwner: string;
   notes: string;
+  orderType: string;
+  lineItemCount: string;
 };
 
 const MAX_SLOTS = 5;
@@ -41,6 +44,7 @@ export default function ProcessTrackerForm({
   // Task hierarchy from database
   const [taskData, setTaskData] = useState<TaskData>({});
   const [taskDataLoading, setTaskDataLoading] = useState(true);
+  const [orderTypes, setOrderTypes] = useState<string[]>([]);
 
   // Multi-task slots
   const [slots, setSlots] = useState<TaskSlot[]>([]);
@@ -53,12 +57,19 @@ export default function ProcessTrackerForm({
   // Tick ref for the running timer
   const tickRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch task hierarchy from Supabase
+  // Fetch task hierarchy and order types from Supabase
   useEffect(() => {
     const fetchTaskData = async () => {
       try {
-        const res = await fetch("/api/task-hierarchy");
-        if (res.ok) setTaskData(await res.json());
+        const [hierRes, otRes] = await Promise.all([
+          fetch("/api/task-hierarchy"),
+          fetch("/api/task-hierarchy?type=order_types"),
+        ]);
+        if (hierRes.ok) setTaskData(await hierRes.json());
+        if (otRes.ok) {
+          const otData = await otRes.json();
+          setOrderTypes(otData.map((o: { name: string }) => o.name));
+        }
       } catch {
         // Fall back silently
       } finally {
@@ -78,10 +89,15 @@ export default function ProcessTrackerForm({
     activeSlot?.department && activeSlot?.role
       ? Object.keys(taskData[activeSlot.department]?.[activeSlot.role] || {})
       : [];
-  const tasks =
+  const tasks: TaskInfo[] =
     activeSlot?.department && activeSlot?.role && activeSlot?.category
       ? taskData[activeSlot.department]?.[activeSlot.role]?.[activeSlot.category] || []
       : [];
+
+  // Determine if dynamic fields should be shown based on selected task
+  const selectedTaskInfo = tasks.find((t) => t.name === activeSlot?.taskName);
+  const showOrderType = selectedTaskInfo?.showOrderType ?? false;
+  const showLineItems = selectedTaskInfo?.showLineItems ?? false;
 
   // --- Timer tick ---
   // Single interval that ticks the running slot
@@ -127,12 +143,15 @@ export default function ProcessTrackerForm({
       lastResumed: null,
       poNumber: "",
       soNumber: "",
+      quoteNumber: "",
       department: initialProfile?.department ?? "",
       role: initialProfile?.role ?? "",
       category: "",
       taskName: "",
       taskOwner: initialProfile?.name ?? "",
       notes: "",
+      orderType: "",
+      lineItemCount: "",
     };
 
     setSlots((prev) => [...prev, newSlot]);
@@ -201,7 +220,7 @@ export default function ProcessTrackerForm({
   const handleDepartmentChange = (val: string) => {
     if (!activeSlot) return;
     if (val !== activeSlot.department) {
-      updateActiveSlot({ department: val, role: "", category: "", taskName: "" });
+      updateActiveSlot({ department: val, role: "", category: "", taskName: "", orderType: "", lineItemCount: "" });
     } else {
       updateActiveSlot({ department: val });
     }
@@ -210,10 +229,20 @@ export default function ProcessTrackerForm({
   const handleRoleChange = (val: string) => {
     if (!activeSlot) return;
     if (val !== activeSlot.role) {
-      updateActiveSlot({ role: val, category: "", taskName: "" });
+      updateActiveSlot({ role: val, category: "", taskName: "", orderType: "", lineItemCount: "" });
     } else {
       updateActiveSlot({ role: val });
     }
+  };
+
+  const handleTaskNameChange = (val: string) => {
+    if (!activeSlot) return;
+    const newTaskInfo = tasks.find((t) => t.name === val);
+    updateActiveSlot({
+      taskName: val,
+      orderType: newTaskInfo?.showOrderType ? activeSlot.orderType : "",
+      lineItemCount: newTaskInfo?.showLineItems ? activeSlot.lineItemCount : "",
+    });
   };
 
   // --- Submit ---
@@ -223,6 +252,14 @@ export default function ProcessTrackerForm({
 
     if (!activeSlot.department || !activeSlot.role || !activeSlot.category || !activeSlot.taskName || !activeSlot.taskOwner) {
       setErrorMsg("Please fill in all required fields.");
+      return;
+    }
+    if (showOrderType && !activeSlot.orderType) {
+      setErrorMsg("Please select an Order Type for this task.");
+      return;
+    }
+    if (showLineItems && !activeSlot.lineItemCount) {
+      setErrorMsg("Please enter the number of line items for this task.");
       return;
     }
     if (activeSlot.elapsed === 0 && activeSlot.status === "paused" && !activeSlot.startTime) {
@@ -245,12 +282,15 @@ export default function ProcessTrackerForm({
         body: JSON.stringify({
           po_number: activeSlot.poNumber || null,
           so_number: activeSlot.soNumber || null,
+          quote_number: activeSlot.quoteNumber || null,
           department: activeSlot.department,
           role: activeSlot.role,
           task_category: activeSlot.category,
           task_name: activeSlot.taskName,
           task_owner: activeSlot.taskOwner,
           notes: activeSlot.notes || null,
+          order_type: activeSlot.orderType || null,
+          line_item_count: activeSlot.lineItemCount ? parseInt(activeSlot.lineItemCount) : null,
           start_time: activeSlot.startTime?.toISOString() ?? null,
           end_time: new Date().toISOString(),
           duration_seconds: activeSlot.elapsed,
@@ -471,7 +511,7 @@ export default function ProcessTrackerForm({
               <p className="text-sm text-gray-400">Loading task options...</p>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">PO Number</label>
                 <input type="text" value={activeSlot.poNumber}
@@ -484,6 +524,13 @@ export default function ProcessTrackerForm({
                 <input type="text" value={activeSlot.soNumber}
                   onChange={(e) => updateActiveSlot({ soNumber: e.target.value })}
                   placeholder="e.g. SO-789012"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quote #</label>
+                <input type="text" value={activeSlot.quoteNumber}
+                  onChange={(e) => updateActiveSlot({ quoteNumber: e.target.value })}
+                  placeholder="e.g. Q-12345"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]" />
               </div>
             </div>
@@ -516,7 +563,7 @@ export default function ProcessTrackerForm({
                 Task Category <span className="text-red-500">*</span>
               </label>
               <select value={activeSlot.category}
-                onChange={(e) => updateActiveSlot({ category: e.target.value, taskName: "" })}
+                onChange={(e) => updateActiveSlot({ category: e.target.value, taskName: "", orderType: "", lineItemCount: "" })}
                 disabled={!activeSlot.role}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] disabled:bg-gray-100 disabled:text-gray-400">
                 <option value="">Select Category</option>
@@ -529,13 +576,41 @@ export default function ProcessTrackerForm({
                 Task Name <span className="text-red-500">*</span>
               </label>
               <select value={activeSlot.taskName}
-                onChange={(e) => updateActiveSlot({ taskName: e.target.value })}
+                onChange={(e) => handleTaskNameChange(e.target.value)}
                 disabled={!activeSlot.category}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] disabled:bg-gray-100 disabled:text-gray-400">
                 <option value="">Select Task</option>
-                {tasks.map((t) => <option key={t} value={t}>{t}</option>)}
+                {tasks.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
               </select>
             </div>
+
+            {/* Dynamic: Order Type — only shown when task has showOrderType flag */}
+            {showOrderType && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Order Type <span className="text-red-500">*</span>
+                </label>
+                <select value={activeSlot.orderType}
+                  onChange={(e) => updateActiveSlot({ orderType: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]">
+                  <option value="">Select Order Type</option>
+                  {orderTypes.map((ot) => <option key={ot} value={ot}>{ot}</option>)}
+                </select>
+              </div>
+            )}
+
+            {/* Dynamic: # of Line Items — only shown when task has showLineItems flag */}
+            {showLineItems && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  # of Line Items <span className="text-red-500">*</span>
+                </label>
+                <input type="number" min="1" value={activeSlot.lineItemCount}
+                  onChange={(e) => updateActiveSlot({ lineItemCount: e.target.value })}
+                  placeholder="e.g. 5"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]" />
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

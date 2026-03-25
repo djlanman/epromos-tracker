@@ -44,6 +44,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data);
   }
 
+  if (type === "order_types") {
+    const { data, error } = await supabase
+      .from("order_types")
+      .select("*")
+      .eq("active", true)
+      .order("sort_order");
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(data);
+  }
+
   // Default: return full nested hierarchy for the process tracker dropdowns
   const { data: departments, error: dErr } = await supabase
     .from("departments")
@@ -68,7 +78,7 @@ export async function GET(req: NextRequest) {
 
   const { data: tasks, error: tErr } = await supabase
     .from("task_names")
-    .select("id, name, category_id")
+    .select("id, name, category_id, show_order_type, show_line_items")
     .eq("active", true)
     .order("sort_order");
   if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 });
@@ -76,10 +86,12 @@ export async function GET(req: NextRequest) {
   type DeptRow = { id: number; name: string };
   type RoleRow = { id: number; name: string; department_id: number };
   type CatRow = { id: number; name: string; role_id: number };
-  type TaskRow = { id: number; name: string; category_id: number };
+  type TaskRow = { id: number; name: string; category_id: number; show_order_type: boolean; show_line_items: boolean };
 
-  // Build the nested structure: { [dept]: { [role]: { [category]: string[] } } }
-  const hierarchy: Record<string, Record<string, Record<string, string[]>>> = {};
+  type TaskInfoOut = { name: string; showOrderType: boolean; showLineItems: boolean };
+
+  // Build the nested structure: { [dept]: { [role]: { [category]: TaskInfo[] } } }
+  const hierarchy: Record<string, Record<string, Record<string, TaskInfoOut[]>>> = {};
 
   for (const dept of (departments || []) as DeptRow[]) {
     hierarchy[dept.name] = {};
@@ -89,7 +101,11 @@ export async function GET(req: NextRequest) {
       const roleCats = ((categories || []) as CatRow[]).filter((c) => c.role_id === role.id);
       for (const cat of roleCats) {
         const catTasks = ((tasks || []) as TaskRow[]).filter((t) => t.category_id === cat.id);
-        hierarchy[dept.name][role.name][cat.name] = catTasks.map((t) => t.name);
+        hierarchy[dept.name][role.name][cat.name] = catTasks.map((t) => ({
+          name: t.name,
+          showOrderType: t.show_order_type,
+          showLineItems: t.show_line_items,
+        }));
       }
     }
   }

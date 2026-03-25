@@ -19,12 +19,15 @@ export type TimeEntry = {
   created_at: string;
   po_number: string | null;
   so_number: string | null;
+  quote_number: string | null;
   department: string;
   role: string;
   task_category: string;
   task_name: string;
   task_owner: string;
   notes: string | null;
+  order_type: string | null;
+  line_item_count: number | null;
   start_time: string | null;
   end_time: string | null;
   duration_seconds: number | null;
