@@ -33,29 +33,18 @@ export async function GET(req: NextRequest) {
   const { data: profiles, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Fetch emails from auth.users using service role with pagination
+  // Fetch emails from auth.users via Postgres function (service role bypasses RLS)
   const serviceClient = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
+  const { data: emailRows } = await serviceClient.rpc("get_user_emails");
+
   const emailMap = new Map<string, string>();
-  let page = 1;
-  const perPage = 1000;
-  let hasMore = true;
-
-  while (hasMore) {
-    const { data: authUsersResponse, error: authError } =
-      await serviceClient.auth.admin.listUsers({ page, perPage });
-
-    if (authError || !authUsersResponse?.users?.length) {
-      hasMore = false;
-    } else {
-      for (const u of authUsersResponse.users) {
-        if (u.email) emailMap.set(u.id, u.email);
-      }
-      hasMore = authUsersResponse.users.length === perPage;
-      page++;
+  if (emailRows) {
+    for (const row of emailRows) {
+      if (row.email) emailMap.set(row.id, row.email);
     }
   }
 
