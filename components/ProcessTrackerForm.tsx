@@ -544,21 +544,7 @@ export default function ProcessTrackerForm({
               </div>
             </div>
 
-            {/* 1. Role */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Role <span className="text-red-500">*</span>
-              </label>
-              <select value={activeSlot.role} onChange={(e) => handleRoleChange(e.target.value)}
-                disabled={!activeSlot.department || !isAdmin}
-                className={`w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] ${!isAdmin ? "bg-gray-50 text-gray-700" : "disabled:bg-gray-100 disabled:text-gray-400"}`}>
-                <option value="">Select Role</option>
-                {roles.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
-              {!isAdmin && <p className="text-xs text-green-600 mt-1">✓ Locked to your role</p>}
-            </div>
-
-            {/* 2. Task Category */}
+            {/* 1. Task Category */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Task Category <span className="text-red-500">*</span>
@@ -572,7 +558,7 @@ export default function ProcessTrackerForm({
               </select>
             </div>
 
-            {/* 3. Task Name */}
+            {/* 2. Task Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Task Name <span className="text-red-500">*</span>
@@ -614,42 +600,13 @@ export default function ProcessTrackerForm({
               </div>
             )}
 
-            {/* 4. Notes */}
+            {/* 3. Notes */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
               <textarea value={activeSlot.notes}
                 onChange={(e) => updateActiveSlot({ notes: e.target.value })}
                 placeholder="Optional notes about this task..." rows={3}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] resize-none" />
-            </div>
-
-            {/* 5. Task Owner */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Task Owner <span className="text-red-500">*</span>
-              </label>
-              <input type="text" value={activeSlot.taskOwner}
-                onChange={(e) => isAdmin && updateActiveSlot({ taskOwner: e.target.value })}
-                readOnly={!isAdmin}
-                placeholder="Your name"
-                className={`w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] ${!isAdmin ? "bg-gray-50 text-gray-700 cursor-not-allowed" : ""}`} />
-              {initialProfile && (
-                <p className="text-xs text-green-600 mt-1">✓ {isAdmin ? "Auto-filled from your account" : "Locked to your account"}</p>
-              )}
-            </div>
-
-            {/* 6. Department */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Department <span className="text-red-500">*</span>
-              </label>
-              <select value={activeSlot.department} onChange={(e) => handleDepartmentChange(e.target.value)}
-                disabled={!isAdmin}
-                className={`w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] ${!isAdmin ? "bg-gray-50 text-gray-700" : ""}`}>
-                <option value="">Select Department</option>
-                {departments.map((d) => <option key={d} value={d}>{d}</option>)}
-              </select>
-              {!isAdmin && <p className="text-xs text-green-600 mt-1">✓ Locked to your department</p>}
             </div>
 
             {errorMsg && (
@@ -667,6 +624,49 @@ export default function ProcessTrackerForm({
                 : submitStatus === "success" ? "✓ Entry Saved!"
                 : "Submit Entry"}
             </button>
+
+            {/* Task Owner (locked for non-admins) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Task Owner <span className="text-red-500">*</span>
+              </label>
+              <input type="text" value={activeSlot.taskOwner}
+                onChange={(e) => isAdmin && updateActiveSlot({ taskOwner: e.target.value })}
+                readOnly={!isAdmin}
+                placeholder="Your name"
+                className={`w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] ${!isAdmin ? "bg-gray-50 text-gray-700 cursor-not-allowed" : ""}`} />
+              {initialProfile && (
+                <p className="text-xs text-green-600 mt-1">✓ {isAdmin ? "Auto-filled from your account" : "Locked to your account"}</p>
+              )}
+            </div>
+
+            {/* Department (locked for non-admins) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Department <span className="text-red-500">*</span>
+              </label>
+              <select value={activeSlot.department} onChange={(e) => handleDepartmentChange(e.target.value)}
+                disabled={!isAdmin}
+                className={`w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] ${!isAdmin ? "bg-gray-50 text-gray-700" : ""}`}>
+                <option value="">Select Department</option>
+                {departments.map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+              {!isAdmin && <p className="text-xs text-green-600 mt-1">✓ Locked to your department</p>}
+            </div>
+
+            {/* Role (locked for non-admins) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Role <span className="text-red-500">*</span>
+              </label>
+              <select value={activeSlot.role} onChange={(e) => handleRoleChange(e.target.value)}
+                disabled={!activeSlot.department || !isAdmin}
+                className={`w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] ${!isAdmin ? "bg-gray-50 text-gray-700" : "disabled:bg-gray-100 disabled:text-gray-400"}`}>
+                <option value="">Select Role</option>
+                {roles.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+              {!isAdmin && <p className="text-xs text-green-600 mt-1">✓ Locked to your role</p>}
+            </div>
           </form>
         </>
       )}
