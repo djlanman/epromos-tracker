@@ -82,9 +82,18 @@ export default function ProcessTrackerForm({
   // Active slot helper
   const activeSlot = slots.find((s) => s.id === activeSlotId) ?? null;
 
+  // Role-based access: non-admins are locked to their assigned department and role
+  const isAdmin = initialProfile?.is_admin ?? false;
+
   // Derived dropdown options for the active slot
-  const departments = Object.keys(taskData);
-  const roles = activeSlot?.department ? Object.keys(taskData[activeSlot.department] || {}) : [];
+  const allDepartments = Object.keys(taskData);
+  const departments = isAdmin
+    ? allDepartments
+    : allDepartments.filter((d) => d === initialProfile?.department);
+  const allRolesForDept = activeSlot?.department ? Object.keys(taskData[activeSlot.department] || {}) : [];
+  const roles = isAdmin
+    ? allRolesForDept
+    : allRolesForDept.filter((r) => r === initialProfile?.role);
   const categories =
     activeSlot?.department && activeSlot?.role
       ? Object.keys(taskData[activeSlot.department]?.[activeSlot.role] || {})
@@ -540,10 +549,12 @@ export default function ProcessTrackerForm({
                 Department <span className="text-red-500">*</span>
               </label>
               <select value={activeSlot.department} onChange={(e) => handleDepartmentChange(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]">
+                disabled={!isAdmin}
+                className={`w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] ${!isAdmin ? "bg-gray-50 text-gray-700" : ""}`}>
                 <option value="">Select Department</option>
                 {departments.map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
+              {!isAdmin && <p className="text-xs text-green-600 mt-1">✓ Locked to your department</p>}
             </div>
 
             <div>
@@ -551,11 +562,12 @@ export default function ProcessTrackerForm({
                 Role <span className="text-red-500">*</span>
               </label>
               <select value={activeSlot.role} onChange={(e) => handleRoleChange(e.target.value)}
-                disabled={!activeSlot.department}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] disabled:bg-gray-100 disabled:text-gray-400">
+                disabled={!activeSlot.department || !isAdmin}
+                className={`w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] ${!isAdmin ? "bg-gray-50 text-gray-700" : "disabled:bg-gray-100 disabled:text-gray-400"}`}>
                 <option value="">Select Role</option>
                 {roles.map((r) => <option key={r} value={r}>{r}</option>)}
               </select>
+              {!isAdmin && <p className="text-xs text-green-600 mt-1">✓ Locked to your role</p>}
             </div>
 
             <div>
@@ -617,11 +629,12 @@ export default function ProcessTrackerForm({
                 Task Owner <span className="text-red-500">*</span>
               </label>
               <input type="text" value={activeSlot.taskOwner}
-                onChange={(e) => updateActiveSlot({ taskOwner: e.target.value })}
+                onChange={(e) => isAdmin && updateActiveSlot({ taskOwner: e.target.value })}
+                readOnly={!isAdmin}
                 placeholder="Your name"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] bg-gray-50" />
+                className={`w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28] ${!isAdmin ? "bg-gray-50 text-gray-700 cursor-not-allowed" : ""}`} />
               {initialProfile && (
-                <p className="text-xs text-green-600 mt-1">✓ Auto-filled from your account</p>
+                <p className="text-xs text-green-600 mt-1">✓ {isAdmin ? "Auto-filled from your account" : "Locked to your account"}</p>
               )}
             </div>
 
