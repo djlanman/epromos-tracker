@@ -7,12 +7,13 @@ import { useRouter } from "next/navigation";
 
 type Department = { id: number; name: string };
 type Role = { id: number; name: string; department_id: number };
+type EmployeeWithEmail = Profile & { email: string | null };
 
 export default function EmployeesPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [employees, setEmployees] = useState<Profile[]>([]);
+  const [employees, setEmployees] = useState<EmployeeWithEmail[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Dynamic departments/roles from database
@@ -88,9 +89,11 @@ export default function EmployeesPage() {
   const fetchEmployees = async () => {
     setLoading(true);
     try {
-      const supabase = createClient();
-      const { data } = await supabase.from("profiles").select("*").order("name");
-      if (data) setEmployees(data);
+      const res = await fetch("/api/employees");
+      if (res.ok) {
+        const data = await res.json();
+        setEmployees(data);
+      }
     } finally {
       setLoading(false);
     }
@@ -156,7 +159,7 @@ export default function EmployeesPage() {
   const startEdit = (emp: Profile) => {
     setEditingId(emp.id);
     setEditName(emp.name);
-    setEditEmail(""); // Don't pre-fill — we don't store email in profiles
+    setEditEmail((emp as EmployeeWithEmail).email || ""); // Pre-fill from auth.users
     setEditPassword("");
     setEditRole(emp.role);
     setEditDepartment(emp.department);
@@ -295,6 +298,7 @@ export default function EmployeesPage() {
             <thead>
               <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 <th className="px-4 py-3">Name</th>
+                <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Department</th>
                 <th className="px-4 py-3">Role</th>
                 <th className="px-4 py-3">Access</th>
@@ -308,6 +312,7 @@ export default function EmployeesPage() {
                 <>
                   <tr key={emp.id} className={`hover:bg-gray-50 ${editingId === emp.id ? "bg-green-50" : ""}`}>
                     <td className="px-4 py-3 font-medium">{emp.name}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{emp.email || "—"}</td>
                     <td className="px-4 py-3 text-gray-600">{emp.department}</td>
                     <td className="px-4 py-3 text-gray-600">{emp.role}</td>
                     <td className="px-4 py-3">
@@ -351,7 +356,7 @@ export default function EmployeesPage() {
                   {/* Inline Edit Row */}
                   {editingId === emp.id && (
                     <tr key={`${emp.id}-edit`} className="bg-green-50 border-t border-green-100">
-                      <td colSpan={7} className="px-4 py-4">
+                      <td colSpan={8} className="px-4 py-4">
                         <form onSubmit={handleSaveEdit} className="space-y-3">
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div>
