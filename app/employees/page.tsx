@@ -158,11 +158,16 @@ export default function EmployeesPage() {
     }
   };
 
+  // Track original email so we only send it if changed
+  const [originalEmail, setOriginalEmail] = useState("");
+
   // --- Start editing ---
   const startEdit = (emp: Profile) => {
     setEditingId(emp.id);
     setEditName(emp.name);
-    setEditEmail((emp as EmployeeWithEmail).email || ""); // Pre-fill from auth.users
+    const empEmail = (emp as EmployeeWithEmail).email || "";
+    setEditEmail(empEmail);
+    setOriginalEmail(empEmail);
     setEditPassword("");
     setEditRole(emp.role);
     setEditDepartment(emp.department);
@@ -195,7 +200,8 @@ export default function EmployeesPage() {
       is_admin: editIsAdmin,
       is_manager: editIsManager,
     };
-    if (editEmail.trim()) body.email = editEmail.trim();
+    // Only send email if it was actually changed
+    if (editEmail.trim() && editEmail.trim() !== originalEmail) body.email = editEmail.trim();
     if (editPassword) body.password = editPassword;
 
     try {
