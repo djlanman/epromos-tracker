@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Admin access required" }, { status: 403 });
   }
 
-  const { email, password, name, role, department, is_admin } = await req.json();
+  const { email, password, name, role, department, is_admin, is_manager } = await req.json();
 
   if (!email || !password || !name || !role || !department) {
     return NextResponse.json({ error: "All fields are required" }, { status: 400 });
@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
       role,
       department,
       is_admin: is_admin || false,
+      is_manager: is_manager || false,
     },
   });
 

@@ -47,7 +47,7 @@ export default async function RootLayout({
                   <a href="/" className="hover:text-[#4CA868] transition-colors">
                     Process Tracker
                   </a>
-                  {profile?.is_admin && (
+                  {(profile?.is_admin || profile?.is_manager) && (
                     <>
                       <a href="/entry-log" className="hover:text-[#4CA868] transition-colors">
                         Entry Log
@@ -55,6 +55,10 @@ export default async function RootLayout({
                       <a href="/reports" className="hover:text-[#4CA868] transition-colors">
                         Reports
                       </a>
+                    </>
+                  )}
+                  {profile?.is_admin && (
+                    <>
                       <a href="/manage-tasks" className="hover:text-[#4CA868] transition-colors">
                         Manage Tasks
                       </a>

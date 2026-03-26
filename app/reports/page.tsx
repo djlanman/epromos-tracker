@@ -110,19 +110,26 @@ export default function ReportsPage() {
   };
 
   useEffect(() => {
-    if (!authLoading && profile?.is_admin) fetchEntries();
+    if (!authLoading && (profile?.is_admin || profile?.is_manager)) fetchEntries();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, profile]);
 
+  // For managers, pre-filter entries to their department only
+  const accessibleEntries = useMemo(() => {
+    if (profile?.is_admin) return entries;
+    if (profile?.is_manager) return entries.filter((e) => e.department === profile.department);
+    return [];
+  }, [entries, profile]);
+
   // Filter options
-  const depts = Array.from(new Set(entries.map((e) => e.department))).sort();
-  const rolesOpts = Array.from(new Set(entries.map((e) => e.role))).sort();
-  const cats = Array.from(new Set(entries.map((e) => e.task_category))).sort();
-  const taskNames = fCategory ? Array.from(new Set(entries.filter((e) => e.task_category === fCategory).map((e) => e.task_name))).sort() : Array.from(new Set(entries.map((e) => e.task_name))).sort();
-  const owners = Array.from(new Set(entries.map((e) => e.task_owner))).sort();
+  const depts = Array.from(new Set(accessibleEntries.map((e) => e.department))).sort();
+  const rolesOpts = Array.from(new Set(accessibleEntries.map((e) => e.role))).sort();
+  const cats = Array.from(new Set(accessibleEntries.map((e) => e.task_category))).sort();
+  const taskNames = fCategory ? Array.from(new Set(accessibleEntries.filter((e) => e.task_category === fCategory).map((e) => e.task_name))).sort() : Array.from(new Set(accessibleEntries.map((e) => e.task_name))).sort();
+  const owners = Array.from(new Set(accessibleEntries.map((e) => e.task_owner))).sort();
 
   // Filtered
-  const filtered = useMemo(() => entries.filter((e) => {
+  const filtered = useMemo(() => accessibleEntries.filter((e) => {
     if (fDept && e.department !== fDept) return false;
     if (fRole && e.role !== fRole) return false;
     if (fCategory && e.task_category !== fCategory) return false;
@@ -292,7 +299,7 @@ export default function ReportsPage() {
 
   // Auth guards
   if (authLoading) return <div className="text-center py-16 text-gray-400">Loading...</div>;
-  if (!profile?.is_admin) return (<div className="max-w-sm mx-auto mt-20 text-center"><p className="text-gray-500 text-lg">Access Denied</p><p className="text-gray-400 text-sm mt-2">Admin access required.</p></div>);
+  if (!profile?.is_admin && !profile?.is_manager) return (<div className="max-w-sm mx-auto mt-20 text-center"><p className="text-gray-500 text-lg">Access Denied</p><p className="text-gray-400 text-sm mt-2">Admin or manager access required.</p></div>);
 
   const hasFilters = fDept || fRole || fCategory || fTask || fOwner || fDateFrom || fDateTo;
   const clearFilters = () => { setFDept(""); setFRole(""); setFCategory(""); setFTask(""); setFOwner(""); setFDateFrom(""); setFDateTo(""); };

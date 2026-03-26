@@ -88,9 +88,16 @@ export default function EntryLog() {
   };
 
   useEffect(() => {
-    if (!authLoading && profile?.is_admin) fetchEntries();
+    if (!authLoading && (profile?.is_admin || profile?.is_manager)) fetchEntries();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, profile]);
+
+  // For managers, pre-filter entries to their department only
+  const accessibleEntries = useMemo(() => {
+    if (profile?.is_admin) return entries;
+    if (profile?.is_manager) return entries.filter((e) => e.department === profile.department);
+    return [];
+  }, [entries, profile]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this entry? This cannot be undone.")) return;
@@ -105,20 +112,20 @@ export default function EntryLog() {
     }
   };
 
-  // Unique filter values from loaded entries
-  const depts = Array.from(new Set(entries.map((e) => e.department))).sort();
-  const roles = Array.from(new Set(entries.map((e) => e.role))).sort();
-  const owners = Array.from(new Set(entries.map((e) => e.task_owner))).sort();
-  const categories = Array.from(new Set(entries.map((e) => e.task_category))).sort();
-  const taskNames = Array.from(new Set(entries.map((e) => e.task_name))).sort();
+  // Unique filter values from accessible entries
+  const depts = Array.from(new Set(accessibleEntries.map((e) => e.department))).sort();
+  const roles = Array.from(new Set(accessibleEntries.map((e) => e.role))).sort();
+  const owners = Array.from(new Set(accessibleEntries.map((e) => e.task_owner))).sort();
+  const categories = Array.from(new Set(accessibleEntries.map((e) => e.task_category))).sort();
+  const taskNames = Array.from(new Set(accessibleEntries.map((e) => e.task_name))).sort();
 
   // Cascading: filter task names based on selected category
   const filteredTaskNames = filterCategory
-    ? Array.from(new Set(entries.filter((e) => e.task_category === filterCategory).map((e) => e.task_name))).sort()
+    ? Array.from(new Set(accessibleEntries.filter((e) => e.task_category === filterCategory).map((e) => e.task_name))).sort()
     : taskNames;
 
   // Apply filters
-  const filtered = useMemo(() => entries.filter((e) => {
+  const filtered = useMemo(() => accessibleEntries.filter((e) => {
     if (filterDept && e.department !== filterDept) return false;
     if (filterRole && e.role !== filterRole) return false;
     if (filterOwner && e.task_owner !== filterOwner) return false;
@@ -171,12 +178,12 @@ export default function EntryLog() {
     return <div className="text-center py-16 text-gray-400">Loading...</div>;
   }
 
-  if (!profile?.is_admin) {
+  if (!profile?.is_admin && !profile?.is_manager) {
     return (
       <div className="max-w-sm mx-auto mt-20 text-center">
         <p className="text-gray-500 text-lg">Access Denied</p>
         <p className="text-gray-400 text-sm mt-2">
-          You need admin access to view the Entry Log.
+          You need admin or manager access to view the Entry Log.
         </p>
       </div>
     );
@@ -401,10 +408,12 @@ export default function EntryLog() {
                   <td className="px-4 py-3 font-mono text-green-700 font-semibold">{formatDuration(entry.duration_seconds)}</td>
                   <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{entry.notes || "—"}</td>
                   <td className="px-4 py-3">
-                    <button onClick={() => handleDelete(entry.id)} disabled={deleteId === entry.id}
-                      className="text-red-500 hover:text-red-700 text-xs font-medium disabled:opacity-40">
-                      {deleteId === entry.id ? "Deleting..." : "Delete"}
-                    </button>
+                    {profile?.is_admin && (
+                      <button onClick={() => handleDelete(entry.id)} disabled={deleteId === entry.id}
+                        className="text-red-500 hover:text-red-700 text-xs font-medium disabled:opacity-40">
+                        {deleteId === entry.id ? "Deleting..." : "Delete"}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

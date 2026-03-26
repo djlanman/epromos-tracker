@@ -47,7 +47,7 @@ export async function PATCH(
   }
 
   // Update profile fields if any were provided
-  const allowedProfileFields = ["name", "role", "department", "is_admin", "active"];
+  const allowedProfileFields = ["name", "role", "department", "is_admin", "is_manager", "active"];
   const filteredProfile: Record<string, unknown> = {};
   for (const key of allowedProfileFields) {
     if (key in profileFields) {

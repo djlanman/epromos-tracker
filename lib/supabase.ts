@@ -8,6 +8,7 @@ export type Profile = {
   role: string;
   department: string;
   is_admin: boolean;
+  is_manager: boolean;
   active: boolean;
 };
 
