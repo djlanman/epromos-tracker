@@ -8,7 +8,16 @@ const EXCLUDED_EMAILS = [
   "tejsingh@aol.in",
 ];
 
+// Allow both GET and POST so you can just visit the URL in your browser
+export async function GET() {
+  return resetAllPasswords();
+}
+
 export async function POST() {
+  return resetAllPasswords();
+}
+
+async function resetAllPasswords() {
   // Verify caller is admin
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
