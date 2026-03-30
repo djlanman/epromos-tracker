@@ -30,48 +30,35 @@ async function resetAllPasswords() {
     .single();
   if (!profile?.is_admin) return NextResponse.json({ error: "Admin access required" }, { status: 403 });
 
-  // Use service role to list all users and reset passwords
   const adminClient = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // Get all users (paginate through)
+  // Use SQL query via RPC instead of listUsers (which fails for SQL-imported users)
+  const { data: users, error: queryError } = await adminClient.rpc("get_user_emails");
+
+  if (queryError) {
+    return NextResponse.json({ error: queryError.message }, { status: 500 });
+  }
+
   const results: { email: string; status: string }[] = [];
-  let page = 1;
-  const perPage = 50;
 
-  while (true) {
-    const { data: { users }, error } = await adminClient.auth.admin.listUsers({
-      page,
-      perPage,
+  for (const u of users || []) {
+    if (!u.email || EXCLUDED_EMAILS.includes(u.email)) {
+      results.push({ email: u.email || "unknown", status: "skipped" });
+      continue;
+    }
+
+    const { error: updateError } = await adminClient.auth.admin.updateUserById(
+      u.id,
+      { password: "tracker26!" }
+    );
+
+    results.push({
+      email: u.email,
+      status: updateError ? `error: ${updateError.message}` : "reset",
     });
-
-    if (error) {
-      return NextResponse.json({ error: error.message, results }, { status: 500 });
-    }
-
-    if (!users || users.length === 0) break;
-
-    for (const u of users) {
-      if (!u.email || EXCLUDED_EMAILS.includes(u.email)) {
-        results.push({ email: u.email || "unknown", status: "skipped" });
-        continue;
-      }
-
-      const { error: updateError } = await adminClient.auth.admin.updateUserById(
-        u.id,
-        { password: "tracker26!" }
-      );
-
-      results.push({
-        email: u.email,
-        status: updateError ? `error: ${updateError.message}` : "reset",
-      });
-    }
-
-    if (users.length < perPage) break;
-    page++;
   }
 
   const resetCount = results.filter((r) => r.status === "reset").length;
