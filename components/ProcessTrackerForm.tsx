@@ -109,7 +109,12 @@ export default function ProcessTrackerForm({
   const showLineItems = selectedTaskInfo?.showLineItems ?? false;
 
   // --- Timer tick ---
-  // Single interval that ticks the running slot
+  // Uses wall-clock time (Date.now) instead of counting intervals to prevent drift.
+  // `elapsed` stores the accumulated seconds from previous run segments.
+  // `lastResumed` stores Date.now() when the current run segment started.
+  // Display = elapsed + (Date.now() - lastResumed) / 1000
+  const [displayTick, setDisplayTick] = useState(0); // forces re-render each second
+
   useEffect(() => {
     if (tickRef.current) clearInterval(tickRef.current);
 
@@ -117,19 +122,21 @@ export default function ProcessTrackerForm({
     if (!runningSlot) return;
 
     tickRef.current = setInterval(() => {
-      setSlots((prev) =>
-        prev.map((s) =>
-          s.id === runningSlot.id && s.status === "running"
-            ? { ...s, elapsed: s.elapsed + 1 }
-            : s
-        )
-      );
+      setDisplayTick((t) => t + 1); // just triggers a re-render
     }, 1000);
 
     return () => {
       if (tickRef.current) clearInterval(tickRef.current);
     };
   }, [slots.find((s) => s.status === "running")?.id, slots.find((s) => s.status === "running")?.status]);
+
+  // Calculate actual elapsed time for a slot using wall-clock time
+  const getElapsed = useCallback((slot: TaskSlot) => {
+    if (slot.status === "running" && slot.lastResumed) {
+      return slot.elapsed + Math.floor((Date.now() - slot.lastResumed) / 1000);
+    }
+    return slot.elapsed;
+  }, [displayTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Slot actions ---
 
@@ -139,9 +146,15 @@ export default function ProcessTrackerForm({
       return;
     }
 
-    // Auto-pause any running slot
+    // Auto-pause any running slot (capture real elapsed time)
     setSlots((prev) =>
-      prev.map((s) => (s.status === "running" ? { ...s, status: "paused" as const } : s))
+      prev.map((s) => {
+        if (s.status !== "running") return s;
+        const realElapsed = s.lastResumed
+          ? s.elapsed + Math.floor((Date.now() - s.lastResumed) / 1000)
+          : s.elapsed;
+        return { ...s, status: "paused" as const, elapsed: realElapsed, lastResumed: null };
+      })
     );
 
     const newSlot: TaskSlot = {
@@ -185,9 +198,12 @@ export default function ProcessTrackerForm({
             lastResumed: Date.now(),
           };
         }
-        // Auto-pause any other running slot
+        // Auto-pause any other running slot (capture real elapsed time)
         if (s.status === "running") {
-          return { ...s, status: "paused" as const };
+          const realElapsed = s.lastResumed
+            ? s.elapsed + Math.floor((Date.now() - s.lastResumed) / 1000)
+            : s.elapsed;
+          return { ...s, status: "paused" as const, elapsed: realElapsed, lastResumed: null };
         }
         return s;
       })
@@ -198,13 +214,27 @@ export default function ProcessTrackerForm({
 
   const pauseSlot = (slotId: string) => {
     setSlots((prev) =>
-      prev.map((s) => (s.id === slotId ? { ...s, status: "paused" as const } : s))
+      prev.map((s) => {
+        if (s.id !== slotId) return s;
+        // Capture real elapsed time from wall clock before pausing
+        const realElapsed = s.status === "running" && s.lastResumed
+          ? s.elapsed + Math.floor((Date.now() - s.lastResumed) / 1000)
+          : s.elapsed;
+        return { ...s, status: "paused" as const, elapsed: realElapsed, lastResumed: null };
+      })
     );
   };
 
   const stopSlot = (slotId: string) => {
     setSlots((prev) =>
-      prev.map((s) => (s.id === slotId ? { ...s, status: "stopped" as const } : s))
+      prev.map((s) => {
+        if (s.id !== slotId) return s;
+        // Capture real elapsed time from wall clock before stopping
+        const realElapsed = s.status === "running" && s.lastResumed
+          ? s.elapsed + Math.floor((Date.now() - s.lastResumed) / 1000)
+          : s.elapsed;
+        return { ...s, status: "stopped" as const, elapsed: realElapsed, lastResumed: null };
+      })
     );
   };
 
@@ -271,7 +301,7 @@ export default function ProcessTrackerForm({
       setErrorMsg("Please enter the number of line items for this task.");
       return;
     }
-    if (activeSlot.elapsed === 0 && activeSlot.status === "paused" && !activeSlot.startTime) {
+    if (getElapsed(activeSlot) === 0 && activeSlot.status === "paused" && !activeSlot.startTime) {
       setErrorMsg("Please start the timer before submitting.");
       return;
     }
@@ -302,7 +332,7 @@ export default function ProcessTrackerForm({
           line_item_count: activeSlot.lineItemCount ? parseInt(activeSlot.lineItemCount) : null,
           start_time: activeSlot.startTime?.toISOString() ?? null,
           end_time: new Date().toISOString(),
-          duration_seconds: activeSlot.elapsed,
+          duration_seconds: getElapsed(activeSlot),
         }),
       });
       if (!res.ok) throw new Error("Failed to save entry");
@@ -383,7 +413,7 @@ export default function ProcessTrackerForm({
               }`}
             />
             <span className="truncate max-w-[120px]">{getSlotLabel(slot)}</span>
-            <span className="font-mono text-xs opacity-70">{formatTimeShort(slot.elapsed)}</span>
+            <span className="font-mono text-xs opacity-70">{formatTimeShort(getElapsed(slot))}</span>
           </button>
         ))}
 
@@ -435,11 +465,11 @@ export default function ProcessTrackerForm({
               )}
             </div>
             <div className={`text-6xl font-mono font-bold text-center mb-5 ${timerColor}`}>
-              {formatTime(activeSlot.elapsed)}
+              {formatTime(getElapsed(activeSlot))}
             </div>
             <div className="flex justify-center gap-3">
               {/* Not started yet */}
-              {activeSlot.status === "paused" && activeSlot.elapsed === 0 && !activeSlot.startTime && (
+              {activeSlot.status === "paused" && getElapsed(activeSlot) === 0 && !activeSlot.startTime && (
                 <button
                   onClick={() => startOrResumeSlot(activeSlot.id)}
                   className="px-6 py-2.5 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors"
@@ -465,7 +495,7 @@ export default function ProcessTrackerForm({
                 </>
               )}
               {/* Paused (with time) */}
-              {activeSlot.status === "paused" && (activeSlot.elapsed > 0 || activeSlot.startTime) && (
+              {activeSlot.status === "paused" && (getElapsed(activeSlot) > 0 || activeSlot.startTime) && (
                 <>
                   <button
                     onClick={() => startOrResumeSlot(activeSlot.id)}
