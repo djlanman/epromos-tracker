@@ -29,9 +29,58 @@ type TaskSlot = {
 };
 
 const MAX_SLOTS = 5;
+const STORAGE_KEY = "epromos-tracker-slots";
+const STORAGE_ACTIVE_KEY = "epromos-tracker-active-slot";
 
 function generateId() {
   return Math.random().toString(36).slice(2, 9);
+}
+
+// Serialize slots for localStorage (Date objects → ISO strings)
+function serializeSlots(slots: TaskSlot[]): string {
+  return JSON.stringify(
+    slots.map((s) => ({
+      ...s,
+      startTime: s.startTime ? s.startTime.toISOString() : null,
+    }))
+  );
+}
+
+// Deserialize slots from localStorage (ISO strings → Date objects)
+function deserializeSlots(json: string): TaskSlot[] {
+  try {
+    const parsed = JSON.parse(json);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((s: Record<string, unknown>) => ({
+      ...s,
+      startTime: s.startTime ? new Date(s.startTime as string) : null,
+      lastResumed: typeof s.lastResumed === "number" ? s.lastResumed : null,
+    })) as TaskSlot[];
+  } catch {
+    return [];
+  }
+}
+
+// Load saved slots from localStorage
+function loadSavedSlots(): { slots: TaskSlot[]; activeSlotId: string | null } {
+  try {
+    const slotsJson = localStorage.getItem(STORAGE_KEY);
+    const activeId = localStorage.getItem(STORAGE_ACTIVE_KEY);
+    if (!slotsJson) return { slots: [], activeSlotId: null };
+    const slots = deserializeSlots(slotsJson);
+    // Filter out any slots that are older than 24 hours and stopped
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const validSlots = slots.filter((s) => {
+      if (s.status === "stopped" && s.startTime && s.startTime.getTime() < cutoff) return false;
+      return true;
+    });
+    return {
+      slots: validSlots,
+      activeSlotId: activeId && validSlots.some((s) => s.id === activeId) ? activeId : validSlots[0]?.id || null,
+    };
+  } catch {
+    return { slots: [], activeSlotId: null };
+  }
 }
 
 // --- Component ---
@@ -56,6 +105,39 @@ export default function ProcessTrackerForm({
 
   // Tick ref for the running timer
   const tickRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Restore saved slots from localStorage on mount
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    const saved = loadSavedSlots();
+    if (saved.slots.length > 0) {
+      setSlots(saved.slots);
+      setActiveSlotId(saved.activeSlotId);
+    }
+    setHydrated(true);
+  }, []);
+
+  // Save slots to localStorage whenever they change
+  useEffect(() => {
+    if (!hydrated) return; // Don't save before we've loaded
+    try {
+      localStorage.setItem(STORAGE_KEY, serializeSlots(slots));
+      localStorage.setItem(STORAGE_ACTIVE_KEY, activeSlotId || "");
+    } catch {
+      // localStorage may be full or unavailable — fail silently
+    }
+  }, [slots, activeSlotId, hydrated]);
+
+  // Warn user before leaving if a timer is running
+  useEffect(() => {
+    const hasRunning = slots.some((s) => s.status === "running");
+    if (!hasRunning) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [slots]);
 
   // Fetch task hierarchy and order types from Supabase
   useEffect(() => {
