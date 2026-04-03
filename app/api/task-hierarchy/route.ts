@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabase
       .from("departments")
       .select("*")
-      .order("sort_order");
+      .order("name");
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json(data);
   }
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from("roles")
       .select("*, departments(name)")
-      .order("sort_order");
+      .order("name");
     if (deptId) query = query.eq("department_id", parseInt(deptId));
     const { data, error } = await query;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -37,8 +37,20 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from("task_categories")
       .select("*, roles(name, departments(name))")
-      .order("sort_order");
+      .order("name");
     if (roleId) query = query.eq("role_id", parseInt(roleId));
+    const { data, error } = await query;
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(data);
+  }
+
+  if (type === "task_names") {
+    const catId = searchParams.get("category_id");
+    let query = supabase
+      .from("task_names")
+      .select("*, task_categories(name, role_id, roles(name, department_id, departments(name)))")
+      .order("name");
+    if (catId) query = query.eq("category_id", parseInt(catId));
     const { data, error } = await query;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json(data);
@@ -49,38 +61,48 @@ export async function GET(req: NextRequest) {
       .from("order_types")
       .select("*")
       .eq("active", true)
-      .order("sort_order");
+      .order("name");
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(data);
+  }
+
+  if (type === "order_types_all") {
+    const { data, error } = await supabase
+      .from("order_types")
+      .select("*")
+      .order("name");
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json(data);
   }
 
   // Default: return full nested hierarchy for the process tracker dropdowns
+  // All sorted alphabetically by name for consistent dropdown ordering
   const { data: departments, error: dErr } = await supabase
     .from("departments")
     .select("id, name")
     .eq("active", true)
-    .order("sort_order");
+    .order("name");
   if (dErr) return NextResponse.json({ error: dErr.message }, { status: 500 });
 
   const { data: roles, error: rErr } = await supabase
     .from("roles")
     .select("id, name, department_id")
     .eq("active", true)
-    .order("sort_order");
+    .order("name");
   if (rErr) return NextResponse.json({ error: rErr.message }, { status: 500 });
 
   const { data: categories, error: cErr } = await supabase
     .from("task_categories")
     .select("id, name, role_id")
     .eq("active", true)
-    .order("sort_order");
+    .order("name");
   if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
 
   const { data: tasks, error: tErr } = await supabase
     .from("task_names")
     .select("id, name, category_id, show_order_type, show_line_items")
     .eq("active", true)
-    .order("sort_order");
+    .order("name");
   if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 });
 
   type DeptRow = { id: number; name: string };
@@ -129,7 +151,7 @@ export async function POST(req: NextRequest) {
   if (!profile?.is_admin) return NextResponse.json({ error: "Admin only" }, { status: 403 });
 
   const body = await req.json();
-  const { type, name, department_id, role_id } = body;
+  const { type, name, department_id, role_id, category_id, show_order_type, show_line_items } = body;
 
   // Use service role for insert (RLS only allows service_role to write)
   const { createClient: createServiceClient } = await import("@supabase/supabase-js");
@@ -190,6 +212,46 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(data, { status: 201 });
   }
 
+  if (type === "task_name") {
+    if (!category_id) return NextResponse.json({ error: "category_id required" }, { status: 400 });
+    const { data: maxOrder } = await serviceClient
+      .from("task_names")
+      .select("sort_order")
+      .eq("category_id", category_id)
+      .order("sort_order", { ascending: false })
+      .limit(1)
+      .single();
+    const { data, error } = await serviceClient
+      .from("task_names")
+      .insert({
+        name,
+        category_id,
+        sort_order: (maxOrder?.sort_order || 0) + 1,
+        show_order_type: show_order_type || false,
+        show_line_items: show_line_items || false,
+      })
+      .select()
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json(data, { status: 201 });
+  }
+
+  if (type === "order_type") {
+    const { data: maxOrder } = await serviceClient
+      .from("order_types")
+      .select("sort_order")
+      .order("sort_order", { ascending: false })
+      .limit(1)
+      .single();
+    const { data, error } = await serviceClient
+      .from("order_types")
+      .insert({ name, sort_order: (maxOrder?.sort_order || 0) + 1 })
+      .select()
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json(data, { status: 201 });
+  }
+
   return NextResponse.json({ error: "Invalid type" }, { status: 400 });
 }
 
@@ -220,6 +282,8 @@ export async function PATCH(req: NextRequest) {
   const table = type === "department" ? "departments"
     : type === "role" ? "roles"
     : type === "category" ? "task_categories"
+    : type === "task_name" ? "task_names"
+    : type === "order_type" ? "order_types"
     : null;
 
   if (!table || !id) return NextResponse.json({ error: "Invalid type or missing id" }, { status: 400 });
@@ -236,7 +300,7 @@ export async function PATCH(req: NextRequest) {
 }
 
 // DELETE /api/task-hierarchy
-// Delete a department, role, or category (cascading)
+// Delete a department, role, category, task name, or order type (cascading)
 export async function DELETE(req: NextRequest) {
   const supabase = await createClient();
 
@@ -263,6 +327,8 @@ export async function DELETE(req: NextRequest) {
   const table = type === "department" ? "departments"
     : type === "role" ? "roles"
     : type === "category" ? "task_categories"
+    : type === "task_name" ? "task_names"
+    : type === "order_type" ? "order_types"
     : null;
 
   if (!table || !id) return NextResponse.json({ error: "Invalid type or missing id" }, { status: 400 });
