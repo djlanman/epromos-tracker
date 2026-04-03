@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+function getServiceClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -13,24 +15,43 @@ export async function GET(req: NextRequest) {
   const task_owner = searchParams.get("task_owner");
   const date = searchParams.get("date");
 
-  // Supabase defaults to 1000 rows max — set a much higher limit
-  let query = supabase
-    .from("time_entries")
-    .select("*", { count: "exact" })
-    .order("created_at", { ascending: false })
-    .limit(50000);
+  const supabase = getServiceClient();
 
-  if (department) query = query.eq("department", department);
-  if (role) query = query.eq("role", role);
-  if (task_owner) query = query.eq("task_owner", task_owner);
-  if (date) query = query.gte("created_at", `${date}T00:00:00`).lte("created_at", `${date}T23:59:59`);
+  // Fetch all entries using pagination to bypass the 1000-row PostgREST limit
+  const PAGE_SIZE = 1000;
+  let allData: Record<string, unknown>[] = [];
+  let page = 0;
+  let hasMore = true;
 
-  const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  while (hasMore) {
+    let query = supabase
+      .from("time_entries")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+    if (department) query = query.eq("department", department);
+    if (role) query = query.eq("role", role);
+    if (task_owner) query = query.eq("task_owner", task_owner);
+    if (date) query = query.gte("created_at", `${date}T00:00:00`).lte("created_at", `${date}T23:59:59`);
+
+    const { data, error } = await query;
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    if (data && data.length > 0) {
+      allData = allData.concat(data);
+      hasMore = data.length === PAGE_SIZE;
+    } else {
+      hasMore = false;
+    }
+    page++;
+  }
+
+  return NextResponse.json(allData);
 }
 
 export async function POST(req: NextRequest) {
+  const supabase = getServiceClient();
   const body = await req.json();
 
   const {
