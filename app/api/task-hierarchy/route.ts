@@ -122,7 +122,8 @@ export async function GET(req: NextRequest) {
       hierarchy[dept.name][role.name] = {};
       const roleCats = ((categories || []) as CatRow[]).filter((c) => c.role_id === role.id);
       for (const cat of roleCats) {
-        const catTasks = ((tasks || []) as TaskRow[]).filter((t) => t.category_id === cat.id);
+        const catTasks = ((tasks || []) as TaskRow[]).filter((t) => t.category_id === cat.id)
+          .sort((a, b) => a.name.localeCompare(b.name));
         hierarchy[dept.name][role.name][cat.name] = catTasks.map((t) => ({
           name: t.name,
           showOrderType: t.show_order_type,

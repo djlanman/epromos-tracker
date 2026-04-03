@@ -168,17 +168,17 @@ export default function ProcessTrackerForm({
   const isAdmin = initialProfile?.is_admin ?? false;
 
   // Derived dropdown options for the active slot
-  const allDepartments = Object.keys(taskData);
+  const allDepartments = Object.keys(taskData).sort();
   const departments = isAdmin
     ? allDepartments
     : allDepartments.filter((d) => d === initialProfile?.department);
-  const allRolesForDept = activeSlot?.department ? Object.keys(taskData[activeSlot.department] || {}) : [];
+  const allRolesForDept = activeSlot?.department ? Object.keys(taskData[activeSlot.department] || {}).sort() : [];
   const roles = isAdmin
     ? allRolesForDept
     : allRolesForDept.filter((r) => r === initialProfile?.role);
   const categories =
     activeSlot?.department && activeSlot?.role
-      ? Object.keys(taskData[activeSlot.department]?.[activeSlot.role] || {})
+      ? Object.keys(taskData[activeSlot.department]?.[activeSlot.role] || {}).sort()
       : [];
   const tasks: TaskInfo[] =
     activeSlot?.department && activeSlot?.role && activeSlot?.category
