@@ -861,7 +861,7 @@ export default function ReportsPage() {
       </div>)}
 
       {/* ═══════ BENCHMARKS ═══════ */}
-      {tab === "benchmarks" && (
+      {tab === "benchmarks" && (<div>
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -918,7 +918,7 @@ export default function ReportsPage() {
             </div>
           </div>
         )}
-      )}
+      </div>)}
 
       {/* ═══════ OUTLIERS ═══════ */}
       {tab === "outliers" && (<div>
@@ -951,8 +951,9 @@ export default function ReportsPage() {
               </tr>
             ))}
           </tbody>
-        </table></div>
+        </table></div>)}
         {/* Outliers Pagination */}
+        {sortedOutliers.length > 0 && (
         <div className="flex items-center justify-between mt-3 text-sm">
           <div className="flex items-center gap-2">
             <span className="text-gray-500">Show</span>
