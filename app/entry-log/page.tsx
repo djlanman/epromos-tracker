@@ -156,7 +156,7 @@ export default function EntryLog() {
       if (entryDate > filterDateTo) return false;
     }
     return true;
-  }), [entries, filterDept, filterRole, filterOwner, filterCategory, filterTask, filterDateFrom, filterDateTo]);
+  }), [accessibleEntries, filterDept, filterRole, filterOwner, filterCategory, filterTask, filterDateFrom, filterDateTo]);
 
   const totalTime = filtered.reduce((sum, e) => sum + (e.duration_seconds || 0), 0);
 
@@ -224,9 +224,9 @@ export default function EntryLog() {
       e.task_name,
       e.po_number || "",
       e.so_number || "",
-      e.quote_number || "",
-      e.order_type || "",
-      e.line_item_count != null ? String(e.line_item_count) : "",
+      (e as any).quote_number || "",
+      (e as any).order_type || "",
+      (e as any).line_item_count != null ? String((e as any).line_item_count) : "",
       String(e.duration_seconds || 0),
       ((e.duration_seconds || 0) / 60).toFixed(2),
       formatDurationDecimal(e.duration_seconds),
@@ -309,19 +309,19 @@ export default function EntryLog() {
   // Helper function to get sort value from TimeEntry
   const getDetailSortValue = (entry: TimeEntry, column: SortColumn): string | number => {
     switch (column) {
-      case "created_at": return entry.created_at;
-      case "task_owner": return entry.task_owner || "";
-      case "department": return entry.department || "";
-      case "role": return entry.role || "";
-      case "task_category": return entry.task_category || "";
-      case "task_name": return entry.task_name || "";
-      case "po_number": return entry.po_number || "";
-      case "so_number": return entry.so_number || "";
-      case "quote_number": return entry.quote_number || "";
-      case "order_type": return entry.order_type || "";
-      case "line_item_count": return entry.line_item_count ?? 0;
-      case "duration_seconds": return entry.duration_seconds ?? 0;
-      case "notes": return entry.notes || "";
+      case "created_at": return entry?.created_at || "";
+      case "task_owner": return entry?.task_owner || "";
+      case "department": return entry?.department || "";
+      case "role": return entry?.role || "";
+      case "task_category": return entry?.task_category || "";
+      case "task_name": return entry?.task_name || "";
+      case "po_number": return entry?.po_number || "";
+      case "so_number": return entry?.so_number || "";
+      case "quote_number": return (entry as any)?.quote_number || "";
+      case "order_type": return (entry as any)?.order_type || "";
+      case "line_item_count": return (entry as any)?.line_item_count ?? 0;
+      case "duration_seconds": return entry?.duration_seconds ?? 0;
+      case "notes": return entry?.notes || "";
       default: return "";
     }
   };
@@ -552,11 +552,11 @@ export default function EntryLog() {
                   <td className="px-2 py-2 font-medium text-[#1A3C28]">{entry.task_name}</td>
                   <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{entry.po_number || "—"}</td>
                   <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{entry.so_number || "—"}</td>
-                  <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{entry.quote_number || "—"}</td>
-                  <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{entry.order_type || "—"}</td>
-                  <td className="px-2 py-2 text-gray-500">{entry.line_item_count != null ? entry.line_item_count : "—"}</td>
+                  <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{(entry as any).quote_number || "—"}</td>
+                  <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{(entry as any).order_type || "—"}</td>
+                  <td className="px-2 py-2 text-gray-500">{(entry as any).line_item_count != null ? (entry as any).line_item_count : "—"}</td>
                   <td className="px-2 py-2 font-mono text-green-700 font-semibold whitespace-nowrap">{formatDuration(entry.duration_seconds)}</td>
-                  <td className="px-2 py-2 text-gray-500 max-w-[200px] truncate">{entry.notes || "—"}</td>
+                  <td className="px-2 py-2 text-gray-500 max-w-[300px] whitespace-normal break-words">{entry.notes || "—"}</td>
                   <td className="px-2 py-2">
                     {profile?.is_admin && (
                       <button onClick={() => handleDelete(entry.id)} disabled={deleteId === entry.id}
