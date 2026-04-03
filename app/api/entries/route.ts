@@ -13,10 +13,12 @@ export async function GET(req: NextRequest) {
   const task_owner = searchParams.get("task_owner");
   const date = searchParams.get("date");
 
+  // Supabase defaults to 1000 rows max — set a much higher limit
   let query = supabase
     .from("time_entries")
-    .select("*")
-    .order("created_at", { ascending: false });
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .limit(50000);
 
   if (department) query = query.eq("department", department);
   if (role) query = query.eq("role", role);
