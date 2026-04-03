@@ -5,6 +5,10 @@ import { createClient } from "@/lib/supabase/client";
 import type { TimeEntry, Profile } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
+type SortColumn = "created_at" | "task_owner" | "department" | "role" | "task_category" | "task_name" | "po_number" | "so_number" | "quote_number" | "order_type" | "line_item_count" | "duration_seconds" | "notes";
+type SortDirection = "asc" | "desc";
+type SummarySortColumn = "department" | "role" | "category" | "taskName" | "entryCount" | "totalSeconds" | "owners";
+
 function formatDuration(seconds: number | null) {
   if (!seconds) return "—";
   const h = Math.floor(seconds / 3600);
@@ -60,6 +64,18 @@ export default function EntryLog() {
   const [filterTask, setFilterTask] = useState("");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
+
+  // Detail View: Sorting and Pagination
+  const [detailSortColumn, setDetailSortColumn] = useState<SortColumn>("created_at");
+  const [detailSortDirection, setDetailSortDirection] = useState<SortDirection>("desc");
+  const [detailPageSize, setDetailPageSize] = useState(50);
+  const [detailCurrentPage, setDetailCurrentPage] = useState(1);
+
+  // Summary View: Sorting and Pagination
+  const [summarySortColumn, setSummarySortColumn] = useState<SummarySortColumn>("department");
+  const [summarySortDirection, setSummarySortDirection] = useState<SortDirection>("asc");
+  const [summaryPageSize, setSummaryPageSize] = useState(50);
+  const [summaryCurrentPage, setSummaryCurrentPage] = useState(1);
 
   // Check auth + admin on mount
   useEffect(() => {
@@ -262,12 +278,120 @@ export default function EntryLog() {
     setFilterTask("");
     setFilterDateFrom("");
     setFilterDateTo("");
+    setDetailCurrentPage(1);
+    setSummaryCurrentPage(1);
   };
 
   const hasActiveFilters = filterDept || filterRole || filterOwner || filterCategory || filterTask || filterDateFrom || filterDateTo;
 
+  // Detail View: Handle column sort
+  const handleDetailSort = (column: SortColumn) => {
+    if (detailSortColumn === column) {
+      setDetailSortDirection(detailSortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setDetailSortColumn(column);
+      setDetailSortDirection("asc");
+    }
+    setDetailCurrentPage(1);
+  };
+
+  // Summary View: Handle column sort
+  const handleSummarySort = (column: SummarySortColumn) => {
+    if (summarySortColumn === column) {
+      setSummarySortDirection(summarySortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSummarySortColumn(column);
+      setSummarySortDirection("asc");
+    }
+    setSummaryCurrentPage(1);
+  };
+
+  // Helper function to get sort value from TimeEntry
+  const getDetailSortValue = (entry: TimeEntry, column: SortColumn): string | number => {
+    switch (column) {
+      case "created_at": return entry.created_at;
+      case "task_owner": return entry.task_owner || "";
+      case "department": return entry.department || "";
+      case "role": return entry.role || "";
+      case "task_category": return entry.task_category || "";
+      case "task_name": return entry.task_name || "";
+      case "po_number": return entry.po_number || "";
+      case "so_number": return entry.so_number || "";
+      case "quote_number": return entry.quote_number || "";
+      case "order_type": return entry.order_type || "";
+      case "line_item_count": return entry.line_item_count ?? 0;
+      case "duration_seconds": return entry.duration_seconds ?? 0;
+      case "notes": return entry.notes || "";
+      default: return "";
+    }
+  };
+
+  // Helper function to get sort value from SummaryRow
+  const getSummarySortValue = (row: SummaryRow, column: SummarySortColumn): string | number => {
+    switch (column) {
+      case "department": return row.department;
+      case "role": return row.role;
+      case "category": return row.category;
+      case "taskName": return row.taskName;
+      case "entryCount": return row.entryCount;
+      case "totalSeconds": return row.totalSeconds;
+      case "owners": return row.owners.join(",");
+      default: return "";
+    }
+  };
+
+  // Sort and paginate detail entries
+  const sortedAndPaginatedDetail = useMemo(() => {
+    const sorted = [...filtered].sort((a, b) => {
+      const aVal = getDetailSortValue(a, detailSortColumn);
+      const bVal = getDetailSortValue(b, detailSortColumn);
+
+      let cmp = 0;
+      if (typeof aVal === "number" && typeof bVal === "number") {
+        cmp = aVal - bVal;
+      } else {
+        cmp = String(aVal).localeCompare(String(bVal));
+      }
+
+      return detailSortDirection === "asc" ? cmp : -cmp;
+    });
+
+    const start = (detailCurrentPage - 1) * detailPageSize;
+    const end = start + detailPageSize;
+    return {
+      data: sorted.slice(start, end),
+      total: sorted.length,
+      totalPages: Math.ceil(sorted.length / detailPageSize),
+    };
+  }, [filtered, detailSortColumn, detailSortDirection, detailCurrentPage, detailPageSize]);
+
+  // Sort and paginate summary rows
+  const sortedAndPaginatedSummary = useMemo(() => {
+    const sorted = [...summaryRows].sort((a, b) => {
+      const aVal = getSummarySortValue(a, summarySortColumn);
+      const bVal = getSummarySortValue(b, summarySortColumn);
+
+      let cmp = 0;
+      if (typeof aVal === "number" && typeof bVal === "number") {
+        cmp = aVal - bVal;
+      } else {
+        cmp = String(aVal).localeCompare(String(bVal));
+      }
+
+      return summarySortDirection === "asc" ? cmp : -cmp;
+    });
+
+    const start = (summaryCurrentPage - 1) * summaryPageSize;
+    const end = start + summaryPageSize;
+    return {
+      data: sorted.slice(start, end),
+      total: sorted.length,
+      totalPages: Math.ceil(sorted.length / summaryPageSize),
+    };
+  }, [summaryRows, summarySortColumn, summarySortDirection, summaryCurrentPage, summaryPageSize]);
+
   return (
-    <div>
+    <div className="full-width-page">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-[#1A3C28]">Entry Log</h1>
@@ -371,47 +495,73 @@ export default function EntryLog() {
         <div className="text-center py-16 text-gray-400">No entries found.</div>
       ) : viewMode === "detail" ? (
         /* ===== DETAIL VIEW ===== */
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-          <table className="w-full text-sm">
+        <div className="rounded-xl border border-gray-200 bg-white">
+          <table className="w-full text-xs">
             <thead>
-              <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Owner</th>
-                <th className="px-4 py-3">Dept</th>
-                <th className="px-4 py-3">Role</th>
-                <th className="px-4 py-3">Category</th>
-                <th className="px-4 py-3">Task</th>
-                <th className="px-4 py-3">PO #</th>
-                <th className="px-4 py-3">SO #</th>
-                <th className="px-4 py-3">Quote #</th>
-                <th className="px-4 py-3">Order Type</th>
-                <th className="px-4 py-3">Line Items</th>
-                <th className="px-4 py-3">Duration</th>
-                <th className="px-4 py-3">Notes</th>
-                <th className="px-4 py-3"></th>
+              <tr className="bg-gray-50 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("created_at")}>
+                  Date {detailSortColumn === "created_at" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("task_owner")}>
+                  Owner {detailSortColumn === "task_owner" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("department")}>
+                  Dept {detailSortColumn === "department" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("role")}>
+                  Role {detailSortColumn === "role" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("task_category")}>
+                  Category {detailSortColumn === "task_category" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("task_name")}>
+                  Task {detailSortColumn === "task_name" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("po_number")}>
+                  PO # {detailSortColumn === "po_number" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("so_number")}>
+                  SO # {detailSortColumn === "so_number" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("quote_number")}>
+                  Quote # {detailSortColumn === "quote_number" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("order_type")}>
+                  Type {detailSortColumn === "order_type" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("line_item_count")}>
+                  Lines {detailSortColumn === "line_item_count" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("duration_seconds")}>
+                  Duration {detailSortColumn === "duration_seconds" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("notes")}>
+                  Notes {detailSortColumn === "notes" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="px-2 py-2"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filtered.map((entry) => (
+              {sortedAndPaginatedDetail.data.map((entry) => (
                 <tr key={entry.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 whitespace-nowrap text-gray-500">{formatDate(entry.created_at)}</td>
-                  <td className="px-4 py-3 font-medium">{entry.task_owner}</td>
-                  <td className="px-4 py-3 text-gray-600">{entry.department}</td>
-                  <td className="px-4 py-3 text-gray-600">{entry.role}</td>
-                  <td className="px-4 py-3 text-gray-600">{entry.task_category}</td>
-                  <td className="px-4 py-3 font-medium text-[#1A3C28]">{entry.task_name}</td>
-                  <td className="px-4 py-3 text-gray-500">{entry.po_number || "—"}</td>
-                  <td className="px-4 py-3 text-gray-500">{entry.so_number || "—"}</td>
-                  <td className="px-4 py-3 text-gray-500">{entry.quote_number || "—"}</td>
-                  <td className="px-4 py-3 text-gray-500">{entry.order_type || "—"}</td>
-                  <td className="px-4 py-3 text-gray-500">{entry.line_item_count != null ? entry.line_item_count : "—"}</td>
-                  <td className="px-4 py-3 font-mono text-green-700 font-semibold">{formatDuration(entry.duration_seconds)}</td>
-                  <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{entry.notes || "—"}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-2 py-2 whitespace-nowrap text-gray-500">{formatDate(entry.created_at)}</td>
+                  <td className="px-2 py-2 whitespace-nowrap font-medium">{entry.task_owner}</td>
+                  <td className="px-2 py-2 whitespace-nowrap text-gray-600">{entry.department}</td>
+                  <td className="px-2 py-2 whitespace-nowrap text-gray-600">{entry.role}</td>
+                  <td className="px-2 py-2 text-gray-600">{entry.task_category}</td>
+                  <td className="px-2 py-2 font-medium text-[#1A3C28]">{entry.task_name}</td>
+                  <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{entry.po_number || "—"}</td>
+                  <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{entry.so_number || "—"}</td>
+                  <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{entry.quote_number || "—"}</td>
+                  <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{entry.order_type || "—"}</td>
+                  <td className="px-2 py-2 text-gray-500">{entry.line_item_count != null ? entry.line_item_count : "—"}</td>
+                  <td className="px-2 py-2 font-mono text-green-700 font-semibold whitespace-nowrap">{formatDuration(entry.duration_seconds)}</td>
+                  <td className="px-2 py-2 text-gray-500 max-w-[200px] truncate">{entry.notes || "—"}</td>
+                  <td className="px-2 py-2">
                     {profile?.is_admin && (
                       <button onClick={() => handleDelete(entry.id)} disabled={deleteId === entry.id}
-                        className="text-red-500 hover:text-red-700 text-xs font-medium disabled:opacity-40">
-                        {deleteId === entry.id ? "Deleting..." : "Delete"}
+                        className="text-red-500 hover:text-red-700 text-[10px] font-medium disabled:opacity-40">
+                        {deleteId === entry.id ? "..." : "Delete"}
                       </button>
                     )}
                   </td>
@@ -419,36 +569,90 @@ export default function EntryLog() {
               ))}
             </tbody>
             <tfoot>
-              <tr className="bg-gray-50 font-semibold text-sm">
-                <td className="px-4 py-3 text-gray-600" colSpan={11}>
+              <tr className="bg-gray-50 font-semibold text-xs">
+                <td className="px-2 py-2 text-gray-600" colSpan={11}>
                   Total ({filtered.length} entries)
                 </td>
-                <td className="px-4 py-3 font-mono text-green-700">{formatDuration(totalTime)}</td>
-                <td colSpan={2} className="px-4 py-3 text-gray-400 text-xs">
+                <td className="px-2 py-2 font-mono text-green-700">{formatDuration(totalTime)}</td>
+                <td colSpan={2} className="px-2 py-2 text-gray-400 text-[10px]">
                   {formatDurationDecimal(totalTime)} hrs
                 </td>
               </tr>
             </tfoot>
           </table>
+
+          {/* Pagination Controls */}
+          <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-t border-gray-200">
+            <div className="flex items-center gap-3">
+              <label className="text-xs text-gray-600">Page size:</label>
+              <select
+                value={detailPageSize}
+                onChange={(e) => {
+                  setDetailPageSize(Number(e.target.value));
+                  setDetailCurrentPage(1);
+                }}
+                className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-[#1A3C28]"
+              >
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+              </select>
+            </div>
+            <div className="text-xs text-gray-600">
+              Page {detailCurrentPage} of {sortedAndPaginatedDetail.totalPages || 1}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setDetailCurrentPage(p => Math.max(1, p - 1))}
+                disabled={detailCurrentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded text-xs text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setDetailCurrentPage(p => Math.min(sortedAndPaginatedDetail.totalPages || 1, p + 1))}
+                disabled={detailCurrentPage >= sortedAndPaginatedDetail.totalPages || sortedAndPaginatedDetail.totalPages === 0}
+                className="px-3 py-1 border border-gray-300 rounded text-xs text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </div>
       ) : (
         /* ===== SUMMARY VIEW ===== */
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+        <div className="rounded-xl border border-gray-200 bg-white">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <th className="px-4 py-3">Department</th>
-                <th className="px-4 py-3">Role</th>
-                <th className="px-4 py-3">Category</th>
-                <th className="px-4 py-3">Task</th>
-                <th className="px-4 py-3 text-right">Entries</th>
-                <th className="px-4 py-3 text-right">Total Time</th>
-                <th className="px-4 py-3 text-right">Hours</th>
-                <th className="px-4 py-3">Owners</th>
+                <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSummarySort("department")}>
+                  Department {summarySortColumn === "department" && (summarySortDirection === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSummarySort("role")}>
+                  Role {summarySortColumn === "role" && (summarySortDirection === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSummarySort("category")}>
+                  Category {summarySortColumn === "category" && (summarySortDirection === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSummarySort("taskName")}>
+                  Task {summarySortColumn === "taskName" && (summarySortDirection === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleSummarySort("entryCount")}>
+                  Entries {summarySortColumn === "entryCount" && (summarySortDirection === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleSummarySort("totalSeconds")}>
+                  Total Time {summarySortColumn === "totalSeconds" && (summarySortDirection === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleSummarySort("totalSeconds")}>
+                  Hours {summarySortColumn === "totalSeconds" && (summarySortDirection === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSummarySort("owners")}>
+                  Owners {summarySortColumn === "owners" && (summarySortDirection === "asc" ? "▲" : "▼")}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {summaryRows.map((row, i) => (
+              {sortedAndPaginatedSummary.data.map((row, i) => (
                 <tr key={i} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-600">{row.department}</td>
                   <td className="px-4 py-3 text-gray-600">{row.role}</td>
@@ -473,6 +677,44 @@ export default function EntryLog() {
               </tr>
             </tfoot>
           </table>
+
+          {/* Pagination Controls */}
+          <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-t border-gray-200">
+            <div className="flex items-center gap-3">
+              <label className="text-xs text-gray-600">Page size:</label>
+              <select
+                value={summaryPageSize}
+                onChange={(e) => {
+                  setSummaryPageSize(Number(e.target.value));
+                  setSummaryCurrentPage(1);
+                }}
+                className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-[#1A3C28]"
+              >
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+              </select>
+            </div>
+            <div className="text-xs text-gray-600">
+              Page {summaryCurrentPage} of {sortedAndPaginatedSummary.totalPages || 1}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSummaryCurrentPage(p => Math.max(1, p - 1))}
+                disabled={summaryCurrentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded text-xs text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setSummaryCurrentPage(p => Math.min(sortedAndPaginatedSummary.totalPages || 1, p + 1))}
+                disabled={summaryCurrentPage >= sortedAndPaginatedSummary.totalPages || sortedAndPaginatedSummary.totalPages === 0}
+                className="px-3 py-1 border border-gray-300 rounded text-xs text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

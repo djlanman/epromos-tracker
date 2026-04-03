@@ -80,6 +80,66 @@ export default function ReportsPage() {
   const [fDateTo, setFDateTo] = useState("");
   const [granularity, setGranularity] = useState<Granularity>("week");
 
+  // ── Sort state for each table ─────────────────────────────
+  const [entriesSortCol, setEntriesSortCol] = useState<string>("date");
+  const [entriesSortDir, setEntriesSortDir] = useState<"asc" | "desc">("desc");
+  const [benchmarkSortCol, setBenchmarkSortCol] = useState<string>("taskName");
+  const [benchmarkSortDir, setBenchmarkSortDir] = useState<"asc" | "desc">("asc");
+  const [outlierSortCol, setOutlierSortCol] = useState<string>("zScore");
+  const [outlierSortDir, setOutlierSortDir] = useState<"asc" | "desc">("desc");
+  const [rollupSortCol, setRollupSortCol] = useState<string>("department");
+  const [rollupSortDir, setRollupSortDir] = useState<"asc" | "desc">("asc");
+
+  // ── Sort handlers ────────────────────────────────────────
+  const handleEntriesSort = (col: string) => {
+    if (entriesSortCol === col) {
+      setEntriesSortDir(entriesSortDir === "asc" ? "desc" : "asc");
+    } else {
+      setEntriesSortCol(col);
+      setEntriesSortDir("asc");
+    }
+  };
+
+  const handleBenchmarkSort = (col: string) => {
+    if (benchmarkSortCol === col) {
+      setBenchmarkSortDir(benchmarkSortDir === "asc" ? "desc" : "asc");
+    } else {
+      setBenchmarkSortCol(col);
+      setBenchmarkSortDir("asc");
+    }
+  };
+
+  const handleOutlierSort = (col: string) => {
+    if (outlierSortCol === col) {
+      setOutlierSortDir(outlierSortDir === "asc" ? "desc" : "asc");
+    } else {
+      setOutlierSortCol(col);
+      setOutlierSortDir("asc");
+    }
+  };
+
+  const handleRollupSort = (col: string) => {
+    if (rollupSortCol === col) {
+      setRollupSortDir(rollupSortDir === "asc" ? "desc" : "asc");
+    } else {
+      setRollupSortCol(col);
+      setRollupSortDir("asc");
+    }
+  };
+
+  // ── Pagination state ──────────────────────────────────────
+  const [entriesPage, setEntriesPage] = useState(1);
+  const [entriesPerPage, setEntriesPerPage] = useState(50);
+  const [benchmarkPage, setBenchmarkPage] = useState(1);
+  const [benchmarkPerPage, setBenchmarkPerPage] = useState(25);
+  const [outlierPage, setOutlierPage] = useState(1);
+  const [outlierPerPage, setOutlierPerPage] = useState(25);
+
+  // Reset pages when filters/sort change
+  useEffect(() => { setEntriesPage(1); }, [fDept, fRole, fCategory, fTask, fOwner, fDateFrom, fDateTo, entriesSortCol, entriesSortDir]);
+  useEffect(() => { setBenchmarkPage(1); }, [fDept, fRole, fCategory, fTask, fOwner, fDateFrom, fDateTo, benchmarkSortCol, benchmarkSortDir]);
+  useEffect(() => { setOutlierPage(1); }, [fDept, fRole, fCategory, fTask, fOwner, fDateFrom, fDateTo, outlierSortCol, outlierSortDir]);
+
   // Drill-down: clicking a chart element sets filters and shows entries
   const drillTo = (filters: { category?: string; task?: string; owner?: string; dept?: string; role?: string; dateFrom?: string; dateTo?: string }) => {
     if (filters.category !== undefined) setFCategory(filters.category);
@@ -264,6 +324,215 @@ export default function ReportsPage() {
       .sort((a, b) => a.department.localeCompare(b.department) || a.role.localeCompare(b.role));
   }, [filtered]);
 
+  // ── Sorted data ───────────────────────────────────────────
+  const sortedEntries = useMemo(() => {
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      let aVal: any = "";
+      let bVal: any = "";
+      switch (entriesSortCol) {
+        case "date":
+          aVal = new Date(a.created_at).getTime();
+          bVal = new Date(b.created_at).getTime();
+          break;
+        case "owner":
+          aVal = a.task_owner;
+          bVal = b.task_owner;
+          break;
+        case "dept":
+          aVal = a.department;
+          bVal = b.department;
+          break;
+        case "role":
+          aVal = a.role;
+          bVal = b.role;
+          break;
+        case "category":
+          aVal = a.task_category;
+          bVal = b.task_category;
+          break;
+        case "task":
+          aVal = a.task_name;
+          bVal = b.task_name;
+          break;
+        case "po":
+          aVal = a.po_number || "";
+          bVal = b.po_number || "";
+          break;
+        case "so":
+          aVal = a.so_number || "";
+          bVal = b.so_number || "";
+          break;
+        case "duration":
+          aVal = a.duration_seconds || 0;
+          bVal = b.duration_seconds || 0;
+          break;
+        default:
+          return 0;
+      }
+      if (typeof aVal === "string" && typeof bVal === "string") {
+        return entriesSortDir === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      }
+      return entriesSortDir === "asc" ? aVal - bVal : bVal - aVal;
+    });
+    return sorted;
+  }, [filtered, entriesSortCol, entriesSortDir]);
+
+  const sortedBenchmarks = useMemo(() => {
+    const sorted = [...benchmarks];
+    sorted.sort((a, b) => {
+      let aVal: any = "";
+      let bVal: any = "";
+      switch (benchmarkSortCol) {
+        case "taskName":
+          aVal = a.taskName;
+          bVal = b.taskName;
+          break;
+        case "category":
+          aVal = a.category;
+          bVal = b.category;
+          break;
+        case "owner":
+          aVal = a.owner;
+          bVal = b.owner;
+          break;
+        case "entries":
+          aVal = a.entryCount;
+          bVal = b.entryCount;
+          break;
+        case "avg":
+          aVal = a.avgSeconds;
+          bVal = b.avgSeconds;
+          break;
+        case "min":
+          aVal = a.minSeconds;
+          bVal = b.minSeconds;
+          break;
+        case "max":
+          aVal = a.maxSeconds;
+          bVal = b.maxSeconds;
+          break;
+        case "stddev":
+          aVal = a.stddevSeconds;
+          bVal = b.stddevSeconds;
+          break;
+        case "globalAvg":
+          aVal = a.avgSeconds;
+          bVal = b.avgSeconds;
+          break;
+        default:
+          return 0;
+      }
+      if (typeof aVal === "string" && typeof bVal === "string") {
+        return benchmarkSortDir === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      }
+      return benchmarkSortDir === "asc" ? aVal - bVal : bVal - aVal;
+    });
+    return sorted;
+  }, [benchmarks, benchmarkSortCol, benchmarkSortDir]);
+
+  const sortedOutliers = useMemo(() => {
+    const sorted = [...outliers];
+    sorted.sort((a, b) => {
+      let aVal: any = "";
+      let bVal: any = "";
+      switch (outlierSortCol) {
+        case "flag":
+          aVal = a.zScore > 0 ? "SLOW" : "FAST";
+          bVal = b.zScore > 0 ? "SLOW" : "FAST";
+          break;
+        case "date":
+          aVal = new Date(a.created_at).getTime();
+          bVal = new Date(b.created_at).getTime();
+          break;
+        case "owner":
+          aVal = a.task_owner;
+          bVal = b.task_owner;
+          break;
+        case "task":
+          aVal = a.task_name;
+          bVal = b.task_name;
+          break;
+        case "category":
+          aVal = a.task_category;
+          bVal = b.task_category;
+          break;
+        case "duration":
+          aVal = a.duration_seconds || 0;
+          bVal = b.duration_seconds || 0;
+          break;
+        case "taskAvg":
+          aVal = a.taskAvg;
+          bVal = b.taskAvg;
+          break;
+        case "deviation":
+          aVal = Math.abs((a.duration_seconds || 0) - a.taskAvg);
+          bVal = Math.abs((b.duration_seconds || 0) - b.taskAvg);
+          break;
+        case "zScore":
+          aVal = Math.abs(a.zScore);
+          bVal = Math.abs(b.zScore);
+          break;
+        default:
+          return 0;
+      }
+      if (typeof aVal === "string" && typeof bVal === "string") {
+        return outlierSortDir === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      }
+      return outlierSortDir === "asc" ? aVal - bVal : bVal - aVal;
+    });
+    return sorted;
+  }, [outliers, outlierSortCol, outlierSortDir]);
+
+  const sortedRollup = useMemo(() => {
+    const sorted = [...rollup];
+    sorted.sort((a, b) => {
+      let aVal: any = "";
+      let bVal: any = "";
+      switch (rollupSortCol) {
+        case "department":
+          aVal = a.department;
+          bVal = b.department;
+          break;
+        case "role":
+          aVal = a.role;
+          bVal = b.role;
+          break;
+        case "entries":
+          aVal = a.entryCount;
+          bVal = b.entryCount;
+          break;
+        case "total":
+          aVal = a.totalSeconds;
+          bVal = b.totalSeconds;
+          break;
+        case "hours":
+          aVal = a.totalSeconds;
+          bVal = b.totalSeconds;
+          break;
+        case "avg":
+          aVal = a.avgSeconds;
+          bVal = b.avgSeconds;
+          break;
+        case "tasks":
+          aVal = a.uniqueTasks;
+          bVal = b.uniqueTasks;
+          break;
+        case "owners":
+          aVal = a.uniqueOwners;
+          bVal = b.uniqueOwners;
+          break;
+        default:
+          return 0;
+      }
+      if (typeof aVal === "string" && typeof bVal === "string") {
+        return rollupSortDir === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      }
+      return rollupSortDir === "asc" ? aVal - bVal : bVal - aVal;
+    });
+    return sorted;
+  }, [rollup, rollupSortCol, rollupSortDir]);
+
   // ── CSV Exports ───────────────────────────────────────────
   const exportDashboardCSV = () => {
     const h = ["Metric", "Value"];
@@ -320,6 +589,12 @@ export default function ReportsPage() {
   const catTotal = categoryBreakdown.reduce((s, c) => s + c.seconds, 0) || 1;
   const maxTaskTotal = topTasks.length > 0 ? topTasks[0].total : 1;
   const maxUserTotal = userLeaderboard.length > 0 ? userLeaderboard[0].total : 1;
+
+  // ── Sort indicator helper ────────────────────────────────
+  const SortIndicator = ({ col, active, dir }: { col: string; active: boolean; dir: "asc" | "desc" }) => {
+    if (!active) return null;
+    return <span className="ml-1 text-xs">{dir === "asc" ? "▲" : "▼"}</span>;
+  };
 
   return (
     <div>
@@ -398,135 +673,121 @@ export default function ReportsPage() {
               {categoryBreakdown.slice(0, 8).map((c, i) => {
                 const pct = (c.seconds / catTotal) * 100;
                 return (
-                  <div key={c.name} onClick={() => drillTo({ category: c.name })} className="cursor-pointer group">
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-gray-700 font-medium truncate max-w-[60%] group-hover:text-[#6366F1] group-hover:underline">{c.name}</span>
-                      <span className="text-gray-500">{hrs(c.seconds)}h ({pct.toFixed(1)}%)</span>
+                  <div key={i} onClick={() => drillTo({ category: c.name })} className="cursor-pointer group">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-gray-700 group-hover:text-[#6366F1] transition-colors">{c.name}</span>
+                      <span className="text-xs text-gray-400 font-mono">{pct.toFixed(0)}%</span>
                     </div>
-                    <div className="h-3 bg-gray-100 rounded-full overflow-hidden group-hover:ring-2 group-hover:ring-[#6366F1]/30 transition-all">
-                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(pct, 1)}%`, backgroundColor: colorFor(i) }} />
+                    <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: pct + "%", backgroundColor: colorFor(i) }} />
                     </div>
                   </div>
                 );
               })}
-              {categoryBreakdown.length > 8 && <p className="text-xs text-gray-400 mt-2">+ {categoryBreakdown.length - 8} more categories</p>}
             </div>
           </div>
 
-          {/* Top 10 Tasks */}
+          {/* Top Tasks */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">Top 10 Tasks by Total Time</h3>
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">Top 10 Tasks by Time</h3>
             <div className="space-y-2">
-              {topTasks.map((t, i) => (
-                <div key={t.name} onClick={() => drillTo({ task: t.name })} className="flex items-center gap-3 cursor-pointer group">
-                  <span className="text-xs font-bold w-5 text-gray-400">{i + 1}</span>
-                  <div className="flex-1">
-                    <div className="flex justify-between text-xs mb-0.5">
-                      <span className="text-gray-700 font-medium truncate max-w-[55%] group-hover:text-[#6366F1] group-hover:underline">{t.name}</span>
-                      <span className="text-gray-500">{hrs(t.total)}h · {t.count} entries</span>
+              {topTasks.map((t, i) => {
+                const pct = (t.total / maxTaskTotal) * 100;
+                return (
+                  <div key={i} onClick={() => drillTo({ task: t.name })} className="cursor-pointer group">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-xs font-medium text-gray-700 group-hover:text-[#6366F1] transition-colors truncate">{t.name}</span>
+                      <span className="text-xs text-gray-400 font-mono ml-2">{hrs(t.total)}h</span>
                     </div>
-                    <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden group-hover:ring-2 group-hover:ring-[#6366F1]/30 transition-all">
-                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(t.total / maxTaskTotal) * 100}%`, backgroundColor: colorFor(i) }} />
+                    <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: pct + "%", backgroundColor: colorFor(i) }} />
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
 
-        {/* Row: User Leaderboard + Day of Week + Hourly */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Row: User Leaderboard + Activity Heatmap */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
           {/* User Leaderboard */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">User Leaderboard</h3>
-            <div className="space-y-3">
-              {userLeaderboard.slice(0, 10).map((u, i) => (
-                <div key={u.name} onClick={() => drillTo({ owner: u.name })} className="flex items-center gap-3 cursor-pointer group">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0`} style={{ backgroundColor: colorFor(i) }}>
-                    {i + 1}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between">
-                      <span className="text-sm font-medium text-gray-800 truncate group-hover:text-[#6366F1] group-hover:underline">{u.name}</span>
-                      <span className="text-xs text-gray-500 ml-2 flex-shrink-0">{hrs(u.total)}h</span>
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">User Leaderboard (by time)</h3>
+            <div className="space-y-2">
+              {userLeaderboard.slice(0, 10).map((u, i) => {
+                const pct = (u.total / maxUserTotal) * 100;
+                return (
+                  <div key={i} onClick={() => drillTo({ owner: u.name })} className="cursor-pointer group">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-xs font-medium text-gray-700 group-hover:text-[#6366F1] transition-colors">{u.name}</span>
+                      <span className="text-xs text-gray-400 font-mono">{hrs(u.total)}h ({u.count} entries)</span>
                     </div>
-                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mt-1 group-hover:ring-2 group-hover:ring-[#6366F1]/30 transition-all">
-                      <div className="h-full rounded-full" style={{ width: `${(u.total / maxUserTotal) * 100}%`, backgroundColor: colorFor(i) }} />
+                    <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: pct + "%", backgroundColor: colorFor(i) }} />
                     </div>
-                    <p className="text-xs text-gray-400 mt-0.5">{u.count} entries · avg {mins(u.avg)} min</p>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
-          {/* Day of Week Heatmap */}
+          {/* Day-of-Week Heatmap */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-sm font-semibold text-gray-700 mb-4">Activity by Day</h3>
-            <div className="space-y-2">
-              {dayOfWeek.map((secs, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <span className="text-xs text-gray-500 w-8 font-medium">{dayName(i)}</span>
-                  <div className="flex-1 h-6 bg-gray-100 rounded-md overflow-hidden">
-                    <div className="h-full rounded-md transition-all duration-500" style={{ width: `${(secs / maxDay) * 100}%`, backgroundColor: secs === maxDay ? "#6366F1" : secs > maxDay * 0.7 ? "#8B5CF6" : secs > maxDay * 0.4 ? "#A78BFA" : "#C4B5FD" }} />
+            <div className="flex gap-1.5 items-end justify-between">
+              {dayOfWeek.map((val, i) => {
+                const h = (val / maxDay) * 100;
+                const minHeight = h === 0 ? 8 : Math.max(h, 8);
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center">
+                    <div className="w-full flex flex-col items-center gap-1">
+                      <div className="w-full bg-gray-100 rounded" style={{ height: minHeight + "px", backgroundColor: h === 0 ? "#e5e7eb" : colorFor(i) }} />
+                      <span className="text-xs font-medium text-gray-500">{dayName(i)}</span>
+                    </div>
                   </div>
-                  <span className="text-xs text-gray-500 w-12 text-right">{hrs(secs)}h</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Hourly Distribution */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">Peak Hours (entries started)</h3>
-            <div className="flex items-end gap-0.5 h-32">
-              {hourly.map((count, h) => (
-                <div key={h} className="flex-1 flex flex-col items-center justify-end">
-                  <div className="w-full rounded-t transition-all duration-300" style={{ height: `${Math.max((count / maxHour) * 100, 2)}%`, backgroundColor: count === maxHour ? "#F59E0B" : count > maxHour * 0.7 ? "#FBBF24" : count > maxHour * 0.3 ? "#FDE68A" : "#FEF3C7" }} />
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-0.5 mt-1">
-              {hourly.map((_, h) => (
-                <div key={h} className="flex-1 text-center">
-                  {h % 3 === 0 && <span className="text-[9px] text-gray-400">{h}</span>}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
 
-        {/* Trend Chart */}
+        {/* Hourly Heatmap */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">Activity by Hour</h3>
+          <div className="flex gap-0.5 items-end" style={{ height: "80px" }}>
+            {hourly.map((val, i) => {
+              const h = (val / maxHour) * 100;
+              const minHeight = h === 0 ? 2 : Math.max(h, 2);
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                  <div className="w-full bg-indigo-400 rounded-t" style={{ height: minHeight + "px" }} title={`${i}:00 - ${val} entries`} />
+                  <span className="text-xs text-gray-400">{i}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Trend Chart (weekly or monthly) */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-gray-700">Avg Duration Trend</h3>
-            <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-              <button onClick={() => setGranularity("week")} className={`px-3 py-1 rounded-md text-xs font-medium ${granularity === "week" ? "bg-white text-[#6366F1] shadow-sm" : "text-gray-500"}`}>Weekly</button>
-              <button onClick={() => setGranularity("month")} className={`px-3 py-1 rounded-md text-xs font-medium ${granularity === "month" ? "bg-white text-[#6366F1] shadow-sm" : "text-gray-500"}`}>Monthly</button>
+            <h3 className="text-sm font-semibold text-gray-700">Trend ({granularity === "week" ? "Weekly" : "Monthly"})</h3>
+            <div className="flex gap-2">
+              <button onClick={() => setGranularity("week")} className={`text-xs px-2 py-1 rounded ${granularity === "week" ? "bg-indigo-100 text-indigo-700 font-medium" : "text-gray-500 hover:text-gray-700"}`}>Week</button>
+              <button onClick={() => setGranularity("month")} className={`text-xs px-2 py-1 rounded ${granularity === "month" ? "bg-indigo-100 text-indigo-700 font-medium" : "text-gray-500 hover:text-gray-700"}`}>Month</button>
             </div>
           </div>
-          <div className="space-y-1.5">
+          <div className="flex gap-1 items-end" style={{ height: "120px" }}>
             {trendData.map((t, i) => {
-              const prev = i > 0 ? trendData[i - 1].avg : null;
-              const change = prev ? ((t.avg - prev) / prev * 100) : null;
-              // Compute date range for this period
-              const periodFrom = t.period;
-              const periodTo = granularity === "week"
-                ? new Date(new Date(t.period).getTime() + 6 * 86400000).toISOString().slice(0, 10)
-                : t.period + "-31"; // month end approximation
+              const h = (t.avg / maxTrendAvg) * 100;
+              const minHeight = h === 0 ? 4 : Math.max(h, 4);
+              const label = granularity === "week" ? t.period.slice(5) : t.period;
               return (
-                <div key={t.period} onClick={() => drillTo({ dateFrom: periodFrom, dateTo: periodTo })} className="flex items-center gap-3 cursor-pointer group">
-                  <span className="text-xs text-gray-500 w-20 flex-shrink-0 font-mono group-hover:text-[#6366F1] group-hover:underline">{t.period}</span>
-                  <div className="flex-1 h-6 bg-gray-100 rounded-md overflow-hidden relative group-hover:ring-2 group-hover:ring-[#6366F1]/30 transition-all">
-                    <div className="h-full rounded-md transition-all duration-500" style={{ width: `${Math.max((t.avg / maxTrendAvg) * 100, 2)}%`, backgroundColor: "#6366F1" }} />
-                  </div>
-                  <span className="text-xs font-mono text-gray-600 w-16 text-right">{mins(t.avg)}m</span>
-                  <span className="text-xs text-gray-400 w-14 text-right">{t.count} ent</span>
-                  <span className="w-14 text-right text-xs font-semibold">
-                    {change !== null ? <span className={change > 5 ? "text-red-500" : change < -5 ? "text-emerald-500" : "text-gray-400"}>{change > 0 ? "+" : ""}{change.toFixed(0)}%</span> : "—"}
-                  </span>
+                <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                  <div className="w-full bg-emerald-400 rounded-t" style={{ height: minHeight + "px" }} title={`${label}: ${mins(t.avg)}min avg`} />
+                  <span className="text-xs text-gray-400 whitespace-nowrap">{label}</span>
                 </div>
               );
             })}
@@ -545,12 +806,19 @@ export default function ReportsPage() {
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              <th className="px-4 py-3">Date</th><th className="px-4 py-3">Owner</th><th className="px-4 py-3">Dept</th>
-              <th className="px-4 py-3">Role</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Task</th>
-              <th className="px-4 py-3">PO #</th><th className="px-4 py-3">SO #</th><th className="px-4 py-3 text-right">Duration</th><th className="px-4 py-3">Notes</th>
+              <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleEntriesSort("date")}>Date<SortIndicator col="date" active={entriesSortCol === "date"} dir={entriesSortDir} /></th>
+              <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleEntriesSort("owner")}>Owner<SortIndicator col="owner" active={entriesSortCol === "owner"} dir={entriesSortDir} /></th>
+              <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleEntriesSort("dept")}>Dept<SortIndicator col="dept" active={entriesSortCol === "dept"} dir={entriesSortDir} /></th>
+              <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleEntriesSort("role")}>Role<SortIndicator col="role" active={entriesSortCol === "role"} dir={entriesSortDir} /></th>
+              <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleEntriesSort("category")}>Category<SortIndicator col="category" active={entriesSortCol === "category"} dir={entriesSortDir} /></th>
+              <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleEntriesSort("task")}>Task<SortIndicator col="task" active={entriesSortCol === "task"} dir={entriesSortDir} /></th>
+              <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleEntriesSort("po")}>PO #<SortIndicator col="po" active={entriesSortCol === "po"} dir={entriesSortDir} /></th>
+              <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleEntriesSort("so")}>SO #<SortIndicator col="so" active={entriesSortCol === "so"} dir={entriesSortDir} /></th>
+              <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleEntriesSort("duration")}>Duration<SortIndicator col="duration" active={entriesSortCol === "duration"} dir={entriesSortDir} /></th>
+              <th className="px-4 py-3">Notes</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {filtered.map((e) => (
+              {sortedEntries.slice((entriesPage - 1) * entriesPerPage, entriesPage * entriesPerPage).map((e) => (
                 <tr key={e.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 whitespace-nowrap text-gray-500">{new Date(e.created_at).toLocaleString()}</td>
                   <td className="px-4 py-3 font-medium">{e.task_owner}</td>
@@ -572,6 +840,24 @@ export default function ReportsPage() {
             </tr></tfoot>
           </table>
         </div>
+        {/* Entries Pagination */}
+        <div className="flex items-center justify-between mt-3 text-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500">Show</span>
+            {[50, 100, 200].map((n) => (
+              <button key={n} onClick={() => { setEntriesPerPage(n); setEntriesPage(1); }}
+                className={`px-2.5 py-1 rounded text-xs font-medium ${entriesPerPage === n ? "bg-[#1A3C28] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>{n}</button>
+            ))}
+            <span className="text-gray-500">per page</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-gray-500">Page {entriesPage} of {Math.max(1, Math.ceil(sortedEntries.length / entriesPerPage))}</span>
+            <button onClick={() => setEntriesPage((p) => Math.max(1, p - 1))} disabled={entriesPage <= 1}
+              className="px-3 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed">Previous</button>
+            <button onClick={() => setEntriesPage((p) => Math.min(Math.ceil(sortedEntries.length / entriesPerPage), p + 1))} disabled={entriesPage >= Math.ceil(sortedEntries.length / entriesPerPage)}
+              className="px-3 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed">Next</button>
+          </div>
+        </div>
       </div>)}
 
       {/* ═══════ BENCHMARKS ═══════ */}
@@ -579,12 +865,19 @@ export default function ReportsPage() {
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              <th className="px-4 py-3">Task</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Owner</th>
-              <th className="px-4 py-3 text-right">Entries</th><th className="px-4 py-3 text-right">Avg</th><th className="px-4 py-3 text-right">Min</th>
-              <th className="px-4 py-3 text-right">Max</th><th className="px-4 py-3 text-right">StdDev</th><th className="px-4 py-3 text-right">Global Avg</th><th className="px-4 py-3 text-right">vs Global</th>
+              <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleBenchmarkSort("taskName")}>Task<SortIndicator col="taskName" active={benchmarkSortCol === "taskName"} dir={benchmarkSortDir} /></th>
+              <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleBenchmarkSort("category")}>Category<SortIndicator col="category" active={benchmarkSortCol === "category"} dir={benchmarkSortDir} /></th>
+              <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleBenchmarkSort("owner")}>Owner<SortIndicator col="owner" active={benchmarkSortCol === "owner"} dir={benchmarkSortDir} /></th>
+              <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleBenchmarkSort("entries")}>Entries<SortIndicator col="entries" active={benchmarkSortCol === "entries"} dir={benchmarkSortDir} /></th>
+              <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleBenchmarkSort("avg")}>Avg<SortIndicator col="avg" active={benchmarkSortCol === "avg"} dir={benchmarkSortDir} /></th>
+              <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleBenchmarkSort("min")}>Min<SortIndicator col="min" active={benchmarkSortCol === "min"} dir={benchmarkSortDir} /></th>
+              <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleBenchmarkSort("max")}>Max<SortIndicator col="max" active={benchmarkSortCol === "max"} dir={benchmarkSortDir} /></th>
+              <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleBenchmarkSort("stddev")}>StdDev<SortIndicator col="stddev" active={benchmarkSortCol === "stddev"} dir={benchmarkSortDir} /></th>
+              <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleBenchmarkSort("globalAvg")}>Global Avg<SortIndicator col="globalAvg" active={benchmarkSortCol === "globalAvg"} dir={benchmarkSortDir} /></th>
+              <th className="px-4 py-3 text-right">vs Global</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {benchmarks.map((b, i) => {
+              {sortedBenchmarks.slice((benchmarkPage - 1) * benchmarkPerPage, benchmarkPage * benchmarkPerPage).map((b, i) => {
                 const gKey = `${b.department}||${b.category}||${b.taskName}`; const g = taskAverages.get(gKey);
                 const variance = g ? ((b.avgSeconds - g.globalAvg) / (g.globalAvg || 1)) * 100 : 0;
                 return (
@@ -605,6 +898,26 @@ export default function ReportsPage() {
           </table>
           {benchmarks.length === 0 && <div className="text-center py-12 text-gray-400">No benchmark data.</div>}
         </div>
+        {/* Benchmarks Pagination */}
+        {sortedBenchmarks.length > 0 && (
+          <div className="flex items-center justify-between mt-3 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">Show</span>
+              {[25, 50, 100, 200].map((n) => (
+                <button key={n} onClick={() => { setBenchmarkPerPage(n); setBenchmarkPage(1); }}
+                  className={`px-2.5 py-1 rounded text-xs font-medium ${benchmarkPerPage === n ? "bg-[#1A3C28] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>{n}</button>
+              ))}
+              <span className="text-gray-500">per page</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-gray-500">Page {benchmarkPage} of {Math.max(1, Math.ceil(sortedBenchmarks.length / benchmarkPerPage))}</span>
+              <button onClick={() => setBenchmarkPage((p) => Math.max(1, p - 1))} disabled={benchmarkPage <= 1}
+                className="px-3 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed">Previous</button>
+              <button onClick={() => setBenchmarkPage((p) => Math.min(Math.ceil(sortedBenchmarks.length / benchmarkPerPage), p + 1))} disabled={benchmarkPage >= Math.ceil(sortedBenchmarks.length / benchmarkPerPage)}
+                className="px-3 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed">Next</button>
+            </div>
+          </div>
+        )}
       )}
 
       {/* ═══════ OUTLIERS ═══════ */}
@@ -613,12 +926,18 @@ export default function ReportsPage() {
         {outliers.length === 0 ? <div className="text-center py-16 text-gray-400 bg-white rounded-xl border border-gray-200">All entries within normal range.</div>
         : (<div className="overflow-x-auto rounded-xl border border-gray-200 bg-white"><table className="w-full text-sm">
           <thead><tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-            <th className="px-4 py-3">Flag</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Owner</th>
-            <th className="px-4 py-3">Task</th><th className="px-4 py-3">Category</th><th className="px-4 py-3 text-right">Duration</th>
-            <th className="px-4 py-3 text-right">Task Avg</th><th className="px-4 py-3 text-right">Deviation</th><th className="px-4 py-3 text-right">Z-Score</th>
+            <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleOutlierSort("flag")}>Flag<SortIndicator col="flag" active={outlierSortCol === "flag"} dir={outlierSortDir} /></th>
+            <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleOutlierSort("date")}>Date<SortIndicator col="date" active={outlierSortCol === "date"} dir={outlierSortDir} /></th>
+            <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleOutlierSort("owner")}>Owner<SortIndicator col="owner" active={outlierSortCol === "owner"} dir={outlierSortDir} /></th>
+            <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleOutlierSort("task")}>Task<SortIndicator col="task" active={outlierSortCol === "task"} dir={outlierSortDir} /></th>
+            <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleOutlierSort("category")}>Category<SortIndicator col="category" active={outlierSortCol === "category"} dir={outlierSortDir} /></th>
+            <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleOutlierSort("duration")}>Duration<SortIndicator col="duration" active={outlierSortCol === "duration"} dir={outlierSortDir} /></th>
+            <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleOutlierSort("taskAvg")}>Task Avg<SortIndicator col="taskAvg" active={outlierSortCol === "taskAvg"} dir={outlierSortDir} /></th>
+            <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleOutlierSort("deviation")}>Deviation<SortIndicator col="deviation" active={outlierSortCol === "deviation"} dir={outlierSortDir} /></th>
+            <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleOutlierSort("zScore")}>Z-Score<SortIndicator col="zScore" active={outlierSortCol === "zScore"} dir={outlierSortDir} /></th>
           </tr></thead>
           <tbody className="divide-y divide-gray-100">
-            {outliers.map((o) => (
+            {sortedOutliers.slice((outlierPage - 1) * outlierPerPage, outlierPage * outlierPerPage).map((o) => (
               <tr key={o.id} className={`hover:bg-gray-50 ${o.zScore > 0 ? "bg-red-50/40" : "bg-emerald-50/40"}`}>
                 <td className="px-4 py-3"><span className={`text-xs font-bold px-2 py-1 rounded-full ${o.zScore > 0 ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>{o.zScore > 0 ? "SLOW" : "FAST"}</span></td>
                 <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{new Date(o.created_at).toLocaleDateString()}</td>
@@ -632,19 +951,43 @@ export default function ReportsPage() {
               </tr>
             ))}
           </tbody>
-        </table></div>)}
+        </table></div>
+        {/* Outliers Pagination */}
+        <div className="flex items-center justify-between mt-3 text-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500">Show</span>
+            {[25, 50, 100, 200].map((n) => (
+              <button key={n} onClick={() => { setOutlierPerPage(n); setOutlierPage(1); }}
+                className={`px-2.5 py-1 rounded text-xs font-medium ${outlierPerPage === n ? "bg-[#1A3C28] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>{n}</button>
+            ))}
+            <span className="text-gray-500">per page</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-gray-500">Page {outlierPage} of {Math.max(1, Math.ceil(sortedOutliers.length / outlierPerPage))}</span>
+            <button onClick={() => setOutlierPage((p) => Math.max(1, p - 1))} disabled={outlierPage <= 1}
+              className="px-3 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed">Previous</button>
+            <button onClick={() => setOutlierPage((p) => Math.min(Math.ceil(sortedOutliers.length / outlierPerPage), p + 1))} disabled={outlierPage >= Math.ceil(sortedOutliers.length / outlierPerPage)}
+              className="px-3 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed">Next</button>
+          </div>
+        </div>
+        )}
       </div>)}
 
       {/* ═══════ ROLLUP ═══════ */}
       {tab === "rollup" && (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white"><table className="w-full text-sm">
           <thead><tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-            <th className="px-4 py-3">Department</th><th className="px-4 py-3">Role</th><th className="px-4 py-3 text-right">Entries</th>
-            <th className="px-4 py-3 text-right">Total Time</th><th className="px-4 py-3 text-right">Hours</th><th className="px-4 py-3 text-right">Avg / Entry</th>
-            <th className="px-4 py-3 text-right">Tasks</th><th className="px-4 py-3 text-right">Owners</th>
+            <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleRollupSort("department")}>Department<SortIndicator col="department" active={rollupSortCol === "department"} dir={rollupSortDir} /></th>
+            <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleRollupSort("role")}>Role<SortIndicator col="role" active={rollupSortCol === "role"} dir={rollupSortDir} /></th>
+            <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleRollupSort("entries")}>Entries<SortIndicator col="entries" active={rollupSortCol === "entries"} dir={rollupSortDir} /></th>
+            <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleRollupSort("total")}>Total Time<SortIndicator col="total" active={rollupSortCol === "total"} dir={rollupSortDir} /></th>
+            <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleRollupSort("hours")}>Hours<SortIndicator col="hours" active={rollupSortCol === "hours"} dir={rollupSortDir} /></th>
+            <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleRollupSort("avg")}>Avg / Entry<SortIndicator col="avg" active={rollupSortCol === "avg"} dir={rollupSortDir} /></th>
+            <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleRollupSort("tasks")}>Tasks<SortIndicator col="tasks" active={rollupSortCol === "tasks"} dir={rollupSortDir} /></th>
+            <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleRollupSort("owners")}>Owners<SortIndicator col="owners" active={rollupSortCol === "owners"} dir={rollupSortDir} /></th>
           </tr></thead>
           <tbody className="divide-y divide-gray-100">
-            {rollup.map((r, i) => (
+            {sortedRollup.map((r, i) => (
               <tr key={i} onClick={() => drillTo({ dept: r.department, role: r.role })} className="hover:bg-indigo-50 cursor-pointer">
                 <td className="px-4 py-3 font-medium hover:text-[#6366F1] hover:underline">{r.department}</td><td className="px-4 py-3 text-gray-600">{r.role}</td>
                 <td className="px-4 py-3 text-right">{r.entryCount}</td>
