@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { TimeEntry, Profile } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
@@ -8,6 +8,19 @@ import { useRouter } from "next/navigation";
 type SortColumn = "created_at" | "task_owner" | "department" | "role" | "task_category" | "task_name" | "po_number" | "so_number" | "quote_number" | "order_type" | "line_item_count" | "duration_seconds" | "notes";
 type SortDirection = "asc" | "desc";
 type SummarySortColumn = "department" | "role" | "category" | "taskName" | "entryCount" | "totalSeconds" | "owners";
+type ViewMode = "detail" | "summary";
+
+type SummaryRow = {
+  department: string;
+  role: string;
+  category: string;
+  taskName: string;
+  entryCount: number;
+  totalSeconds: number;
+  owners: string[];
+};
+
+// ── Pure helper functions (outside component to avoid re-creation) ──
 
 function formatDuration(seconds: number | null) {
   if (!seconds) return "—";
@@ -25,24 +38,76 @@ function formatDurationDecimal(seconds: number | null) {
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleString();
+  if (!iso) return "—";
+  try { return new Date(iso).toLocaleString(); } catch { return "—"; }
 }
 
 function formatDateCSV(iso: string) {
-  return new Date(iso).toISOString().replace("T", " ").slice(0, 19);
+  if (!iso) return "";
+  try { return new Date(iso).toISOString().replace("T", " ").slice(0, 19); } catch { return ""; }
 }
 
-type ViewMode = "detail" | "summary";
+function escapeCSV(val: string) {
+  if (val.includes(",") || val.includes('"') || val.includes("\n")) {
+    return `"${val.replace(/"/g, '""')}"`;
+  }
+  return val;
+}
 
-type SummaryRow = {
-  department: string;
-  role: string;
-  category: string;
-  taskName: string;
-  entryCount: number;
-  totalSeconds: number;
-  owners: string[];
-};
+function downloadCSV(csv: string, filename: string) {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function getDetailSortValue(entry: any, column: SortColumn): string | number {
+  if (!entry) return "";
+  switch (column) {
+    case "created_at": return entry.created_at || "";
+    case "task_owner": return entry.task_owner || "";
+    case "department": return entry.department || "";
+    case "role": return entry.role || "";
+    case "task_category": return entry.task_category || "";
+    case "task_name": return entry.task_name || "";
+    case "po_number": return entry.po_number || "";
+    case "so_number": return entry.so_number || "";
+    case "quote_number": return entry.quote_number || "";
+    case "order_type": return entry.order_type || "";
+    case "line_item_count": return entry.line_item_count ?? 0;
+    case "duration_seconds": return entry.duration_seconds ?? 0;
+    case "notes": return entry.notes || "";
+    default: return "";
+  }
+}
+
+function getSummarySortValue(row: SummaryRow, column: SummarySortColumn): string | number {
+  switch (column) {
+    case "department": return row.department;
+    case "role": return row.role;
+    case "category": return row.category;
+    case "taskName": return row.taskName;
+    case "entryCount": return row.entryCount;
+    case "totalSeconds": return row.totalSeconds;
+    case "owners": return row.owners.join(",");
+    default: return "";
+  }
+}
+
+function compareSortValues(aVal: string | number, bVal: string | number, direction: SortDirection): number {
+  let cmp = 0;
+  if (typeof aVal === "number" && typeof bVal === "number") {
+    cmp = aVal - bVal;
+  } else {
+    cmp = String(aVal).localeCompare(String(bVal));
+  }
+  return direction === "asc" ? cmp : -cmp;
+}
+
+// ── Component ──
 
 export default function EntryLog() {
   const router = useRouter();
@@ -90,7 +155,7 @@ export default function EntryLog() {
     checkAuth();
   }, [router]);
 
-  const fetchEntries = async () => {
+  const fetchEntries = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/entries");
@@ -101,12 +166,11 @@ export default function EntryLog() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!authLoading && (profile?.is_admin || profile?.is_manager)) fetchEntries();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, profile]);
+  }, [authLoading, profile, fetchEntries]);
 
   // For managers, pre-filter entries to their department only
   const accessibleEntries = useMemo(() => {
@@ -128,17 +192,20 @@ export default function EntryLog() {
     }
   };
 
-  // Unique filter values from accessible entries
-  const depts = Array.from(new Set(accessibleEntries.map((e) => e.department))).sort();
-  const roles = Array.from(new Set(accessibleEntries.map((e) => e.role))).sort();
-  const owners = Array.from(new Set(accessibleEntries.map((e) => e.task_owner))).sort();
-  const categories = Array.from(new Set(accessibleEntries.map((e) => e.task_category))).sort();
-  const taskNames = Array.from(new Set(accessibleEntries.map((e) => e.task_name))).sort();
+  // Unique filter values from accessible entries — wrapped in useMemo
+  const depts = useMemo(() => Array.from(new Set(accessibleEntries.map((e) => e.department))).sort(), [accessibleEntries]);
+  const roles = useMemo(() => Array.from(new Set(accessibleEntries.map((e) => e.role))).sort(), [accessibleEntries]);
+  const owners = useMemo(() => Array.from(new Set(accessibleEntries.map((e) => e.task_owner))).sort(), [accessibleEntries]);
+  const categories = useMemo(() => Array.from(new Set(accessibleEntries.map((e) => e.task_category))).sort(), [accessibleEntries]);
+  const taskNames = useMemo(() => Array.from(new Set(accessibleEntries.map((e) => e.task_name))).sort(), [accessibleEntries]);
 
   // Cascading: filter task names based on selected category
-  const filteredTaskNames = filterCategory
-    ? Array.from(new Set(accessibleEntries.filter((e) => e.task_category === filterCategory).map((e) => e.task_name))).sort()
-    : taskNames;
+  const filteredTaskNames = useMemo(() => {
+    if (filterCategory) {
+      return Array.from(new Set(accessibleEntries.filter((e) => e.task_category === filterCategory).map((e) => e.task_name))).sort();
+    }
+    return taskNames;
+  }, [accessibleEntries, filterCategory, taskNames]);
 
   // Apply filters
   const filtered = useMemo(() => accessibleEntries.filter((e) => {
@@ -148,20 +215,20 @@ export default function EntryLog() {
     if (filterCategory && e.task_category !== filterCategory) return false;
     if (filterTask && e.task_name !== filterTask) return false;
     if (filterDateFrom) {
-      const entryDate = e.created_at.slice(0, 10);
+      const entryDate = (e.created_at || "").slice(0, 10);
       if (entryDate < filterDateFrom) return false;
     }
     if (filterDateTo) {
-      const entryDate = e.created_at.slice(0, 10);
+      const entryDate = (e.created_at || "").slice(0, 10);
       if (entryDate > filterDateTo) return false;
     }
     return true;
   }), [accessibleEntries, filterDept, filterRole, filterOwner, filterCategory, filterTask, filterDateFrom, filterDateTo]);
 
-  const totalTime = filtered.reduce((sum, e) => sum + (e.duration_seconds || 0), 0);
+  const totalTime = useMemo(() => filtered.reduce((sum, e) => sum + (e.duration_seconds || 0), 0), [filtered]);
 
   // Summary data: group by dept > role > category > task
-  const summaryRows: SummaryRow[] = useMemo(() => {
+  const summaryRows = useMemo<SummaryRow[]>(() => {
     const map = new Map<string, SummaryRow>();
     for (const e of filtered) {
       const key = `${e.department}||${e.role}||${e.task_category}||${e.task_name}`;
@@ -190,6 +257,49 @@ export default function EntryLog() {
     );
   }, [filtered]);
 
+  // Sort and paginate detail entries
+  const sortedAndPaginatedDetail = useMemo(() => {
+    const sorted = [...filtered].sort((a, b) => {
+      const aVal = getDetailSortValue(a, detailSortColumn);
+      const bVal = getDetailSortValue(b, detailSortColumn);
+      return compareSortValues(aVal, bVal, detailSortDirection);
+    });
+
+    const totalItems = sorted.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / detailPageSize));
+    const safePage = Math.min(detailCurrentPage, totalPages);
+    const start = (safePage - 1) * detailPageSize;
+    const end = start + detailPageSize;
+    return {
+      data: sorted.slice(start, end),
+      total: totalItems,
+      totalPages,
+      currentPage: safePage,
+    };
+  }, [filtered, detailSortColumn, detailSortDirection, detailCurrentPage, detailPageSize]);
+
+  // Sort and paginate summary rows
+  const sortedAndPaginatedSummary = useMemo(() => {
+    const sorted = [...summaryRows].sort((a, b) => {
+      const aVal = getSummarySortValue(a, summarySortColumn);
+      const bVal = getSummarySortValue(b, summarySortColumn);
+      return compareSortValues(aVal, bVal, summarySortDirection);
+    });
+
+    const totalItems = sorted.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / summaryPageSize));
+    const safePage = Math.min(summaryCurrentPage, totalPages);
+    const start = (safePage - 1) * summaryPageSize;
+    const end = start + summaryPageSize;
+    return {
+      data: sorted.slice(start, end),
+      total: totalItems,
+      totalPages,
+      currentPage: safePage,
+    };
+  }, [summaryRows, summarySortColumn, summarySortDirection, summaryCurrentPage, summaryPageSize]);
+
+  // Auth guards — early returns
   if (authLoading) {
     return <div className="text-center py-16 text-gray-400">Loading...</div>;
   }
@@ -205,17 +315,45 @@ export default function EntryLog() {
     );
   }
 
-  // --- CSV Export ---
-  const escapeCSV = (val: string) => {
-    if (val.includes(",") || val.includes('"') || val.includes("\n")) {
-      return `"${val.replace(/"/g, '""')}"`;
+  // ── Event handlers (defined after early returns) ──
+
+  const handleDetailSort = (column: SortColumn) => {
+    if (detailSortColumn === column) {
+      setDetailSortDirection(detailSortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setDetailSortColumn(column);
+      setDetailSortDirection("asc");
     }
-    return val;
+    setDetailCurrentPage(1);
   };
+
+  const handleSummarySort = (column: SummarySortColumn) => {
+    if (summarySortColumn === column) {
+      setSummarySortDirection(summarySortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSummarySortColumn(column);
+      setSummarySortDirection("asc");
+    }
+    setSummaryCurrentPage(1);
+  };
+
+  const clearFilters = () => {
+    setFilterDept("");
+    setFilterRole("");
+    setFilterOwner("");
+    setFilterCategory("");
+    setFilterTask("");
+    setFilterDateFrom("");
+    setFilterDateTo("");
+    setDetailCurrentPage(1);
+    setSummaryCurrentPage(1);
+  };
+
+  const hasActiveFilters = filterDept || filterRole || filterOwner || filterCategory || filterTask || filterDateFrom || filterDateTo;
 
   const exportDetailCSV = () => {
     const headers = ["Date", "Owner", "Department", "Role", "Category", "Task", "PO #", "SO #", "Quote #", "Order Type", "# of Line Items", "Duration (seconds)", "Duration (minutes)", "Duration (hours)", "Notes"];
-    const rows = filtered.map((e) => [
+    const rows = filtered.map((e: any) => [
       formatDateCSV(e.created_at),
       e.task_owner,
       e.department,
@@ -224,15 +362,14 @@ export default function EntryLog() {
       e.task_name,
       e.po_number || "",
       e.so_number || "",
-      (e as any).quote_number || "",
-      (e as any).order_type || "",
-      (e as any).line_item_count != null ? String((e as any).line_item_count) : "",
+      e.quote_number || "",
+      e.order_type || "",
+      e.line_item_count != null ? String(e.line_item_count) : "",
       String(e.duration_seconds || 0),
       ((e.duration_seconds || 0) / 60).toFixed(2),
       formatDurationDecimal(e.duration_seconds),
       e.notes || "",
     ]);
-
     const csv = [headers, ...rows].map((row) => row.map(escapeCSV).join(",")).join("\n");
     downloadCSV(csv, "time-entries-detail.csv");
   };
@@ -250,145 +387,15 @@ export default function EntryLog() {
       formatDurationDecimal(r.totalSeconds),
       r.owners.join("; "),
     ]);
-
-    // Add totals row
     const totalEntries = summaryRows.reduce((s, r) => s + r.entryCount, 0);
     const totalSec = summaryRows.reduce((s, r) => s + r.totalSeconds, 0);
     rows.push(["TOTAL", "", "", "", String(totalEntries), String(totalSec), (totalSec / 60).toFixed(2), formatDurationDecimal(totalSec), ""]);
-
     const csv = [headers, ...rows].map((row) => row.map(escapeCSV).join(",")).join("\n");
     downloadCSV(csv, "time-entries-summary.csv");
   };
 
-  const downloadCSV = (csv: string, filename: string) => {
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const clearFilters = () => {
-    setFilterDept("");
-    setFilterRole("");
-    setFilterOwner("");
-    setFilterCategory("");
-    setFilterTask("");
-    setFilterDateFrom("");
-    setFilterDateTo("");
-    setDetailCurrentPage(1);
-    setSummaryCurrentPage(1);
-  };
-
-  const hasActiveFilters = filterDept || filterRole || filterOwner || filterCategory || filterTask || filterDateFrom || filterDateTo;
-
-  // Detail View: Handle column sort
-  const handleDetailSort = (column: SortColumn) => {
-    if (detailSortColumn === column) {
-      setDetailSortDirection(detailSortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setDetailSortColumn(column);
-      setDetailSortDirection("asc");
-    }
-    setDetailCurrentPage(1);
-  };
-
-  // Summary View: Handle column sort
-  const handleSummarySort = (column: SummarySortColumn) => {
-    if (summarySortColumn === column) {
-      setSummarySortDirection(summarySortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setSummarySortColumn(column);
-      setSummarySortDirection("asc");
-    }
-    setSummaryCurrentPage(1);
-  };
-
-  // Helper function to get sort value from TimeEntry
-  const getDetailSortValue = (entry: TimeEntry, column: SortColumn): string | number => {
-    switch (column) {
-      case "created_at": return entry?.created_at || "";
-      case "task_owner": return entry?.task_owner || "";
-      case "department": return entry?.department || "";
-      case "role": return entry?.role || "";
-      case "task_category": return entry?.task_category || "";
-      case "task_name": return entry?.task_name || "";
-      case "po_number": return entry?.po_number || "";
-      case "so_number": return entry?.so_number || "";
-      case "quote_number": return (entry as any)?.quote_number || "";
-      case "order_type": return (entry as any)?.order_type || "";
-      case "line_item_count": return (entry as any)?.line_item_count ?? 0;
-      case "duration_seconds": return entry?.duration_seconds ?? 0;
-      case "notes": return entry?.notes || "";
-      default: return "";
-    }
-  };
-
-  // Helper function to get sort value from SummaryRow
-  const getSummarySortValue = (row: SummaryRow, column: SummarySortColumn): string | number => {
-    switch (column) {
-      case "department": return row.department;
-      case "role": return row.role;
-      case "category": return row.category;
-      case "taskName": return row.taskName;
-      case "entryCount": return row.entryCount;
-      case "totalSeconds": return row.totalSeconds;
-      case "owners": return row.owners.join(",");
-      default: return "";
-    }
-  };
-
-  // Sort and paginate detail entries
-  const sortedAndPaginatedDetail = useMemo(() => {
-    const sorted = [...filtered].sort((a, b) => {
-      const aVal = getDetailSortValue(a, detailSortColumn);
-      const bVal = getDetailSortValue(b, detailSortColumn);
-
-      let cmp = 0;
-      if (typeof aVal === "number" && typeof bVal === "number") {
-        cmp = aVal - bVal;
-      } else {
-        cmp = String(aVal).localeCompare(String(bVal));
-      }
-
-      return detailSortDirection === "asc" ? cmp : -cmp;
-    });
-
-    const start = (detailCurrentPage - 1) * detailPageSize;
-    const end = start + detailPageSize;
-    return {
-      data: sorted.slice(start, end),
-      total: sorted.length,
-      totalPages: Math.ceil(sorted.length / detailPageSize),
-    };
-  }, [filtered, detailSortColumn, detailSortDirection, detailCurrentPage, detailPageSize]);
-
-  // Sort and paginate summary rows
-  const sortedAndPaginatedSummary = useMemo(() => {
-    const sorted = [...summaryRows].sort((a, b) => {
-      const aVal = getSummarySortValue(a, summarySortColumn);
-      const bVal = getSummarySortValue(b, summarySortColumn);
-
-      let cmp = 0;
-      if (typeof aVal === "number" && typeof bVal === "number") {
-        cmp = aVal - bVal;
-      } else {
-        cmp = String(aVal).localeCompare(String(bVal));
-      }
-
-      return summarySortDirection === "asc" ? cmp : -cmp;
-    });
-
-    const start = (summaryCurrentPage - 1) * summaryPageSize;
-    const end = start + summaryPageSize;
-    return {
-      data: sorted.slice(start, end),
-      total: sorted.length,
-      totalPages: Math.ceil(sorted.length / summaryPageSize),
-    };
-  }, [summaryRows, summarySortColumn, summarySortDirection, summaryCurrentPage, summaryPageSize]);
+  // ── Sort arrow helper ──
+  const sortArrow = (active: boolean, dir: SortDirection) => active ? (dir === "asc" ? " ▲" : " ▼") : "";
 
   return (
     <div className="full-width-page">
@@ -431,16 +438,12 @@ export default function EntryLog() {
             <option value="">All Owners</option>
             {owners.map((o) => <option key={o} value={o}>{o}</option>)}
           </select>
-          <div className="flex items-center gap-2">
-            <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)}
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]"
-              placeholder="From" />
-          </div>
-          <div className="flex items-center gap-2">
-            <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)}
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]"
-              placeholder="To" />
-          </div>
+          <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]"
+            placeholder="From" />
+          <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3C28]"
+            placeholder="To" />
           <div className="flex items-center">
             {hasActiveFilters && (
               <button onClick={clearFilters}
@@ -500,49 +503,49 @@ export default function EntryLog() {
             <thead>
               <tr className="bg-gray-50 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
                 <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("created_at")}>
-                  Date {detailSortColumn === "created_at" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                  Date{sortArrow(detailSortColumn === "created_at", detailSortDirection)}
                 </th>
                 <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("task_owner")}>
-                  Owner {detailSortColumn === "task_owner" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                  Owner{sortArrow(detailSortColumn === "task_owner", detailSortDirection)}
                 </th>
                 <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("department")}>
-                  Dept {detailSortColumn === "department" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                  Dept{sortArrow(detailSortColumn === "department", detailSortDirection)}
                 </th>
                 <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("role")}>
-                  Role {detailSortColumn === "role" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                  Role{sortArrow(detailSortColumn === "role", detailSortDirection)}
                 </th>
                 <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("task_category")}>
-                  Category {detailSortColumn === "task_category" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                  Category{sortArrow(detailSortColumn === "task_category", detailSortDirection)}
                 </th>
                 <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("task_name")}>
-                  Task {detailSortColumn === "task_name" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                  Task{sortArrow(detailSortColumn === "task_name", detailSortDirection)}
                 </th>
                 <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("po_number")}>
-                  PO # {detailSortColumn === "po_number" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                  PO #{sortArrow(detailSortColumn === "po_number", detailSortDirection)}
                 </th>
                 <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("so_number")}>
-                  SO # {detailSortColumn === "so_number" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                  SO #{sortArrow(detailSortColumn === "so_number", detailSortDirection)}
                 </th>
                 <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("quote_number")}>
-                  Quote # {detailSortColumn === "quote_number" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                  Quote #{sortArrow(detailSortColumn === "quote_number", detailSortDirection)}
                 </th>
                 <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("order_type")}>
-                  Type {detailSortColumn === "order_type" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                  Type{sortArrow(detailSortColumn === "order_type", detailSortDirection)}
                 </th>
                 <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("line_item_count")}>
-                  Lines {detailSortColumn === "line_item_count" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                  Lines{sortArrow(detailSortColumn === "line_item_count", detailSortDirection)}
                 </th>
                 <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("duration_seconds")}>
-                  Duration {detailSortColumn === "duration_seconds" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                  Duration{sortArrow(detailSortColumn === "duration_seconds", detailSortDirection)}
                 </th>
                 <th className="px-2 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleDetailSort("notes")}>
-                  Notes {detailSortColumn === "notes" && (detailSortDirection === "asc" ? "▲" : "▼")}
+                  Notes{sortArrow(detailSortColumn === "notes", detailSortDirection)}
                 </th>
                 <th className="px-2 py-2"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {sortedAndPaginatedDetail.data.map((entry) => (
+              {sortedAndPaginatedDetail.data.map((entry: any) => (
                 <tr key={entry.id} className="hover:bg-gray-50">
                   <td className="px-2 py-2 whitespace-nowrap text-gray-500">{formatDate(entry.created_at)}</td>
                   <td className="px-2 py-2 whitespace-nowrap font-medium">{entry.task_owner}</td>
@@ -552,11 +555,11 @@ export default function EntryLog() {
                   <td className="px-2 py-2 font-medium text-[#1A3C28]">{entry.task_name}</td>
                   <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{entry.po_number || "—"}</td>
                   <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{entry.so_number || "—"}</td>
-                  <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{(entry as any).quote_number || "—"}</td>
-                  <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{(entry as any).order_type || "—"}</td>
-                  <td className="px-2 py-2 text-gray-500">{(entry as any).line_item_count != null ? (entry as any).line_item_count : "—"}</td>
+                  <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{entry.quote_number || "—"}</td>
+                  <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{entry.order_type || "—"}</td>
+                  <td className="px-2 py-2 text-gray-500">{entry.line_item_count != null ? entry.line_item_count : "—"}</td>
                   <td className="px-2 py-2 font-mono text-green-700 font-semibold whitespace-nowrap">{formatDuration(entry.duration_seconds)}</td>
-                  <td className="px-2 py-2 text-gray-500 max-w-[300px] whitespace-normal break-words">{entry.notes || "—"}</td>
+                  <td className="px-2 py-2 text-gray-500 min-w-[150px] max-w-[300px] whitespace-normal break-words">{entry.notes || "—"}</td>
                   <td className="px-2 py-2">
                     {profile?.is_admin && (
                       <button onClick={() => handleDelete(entry.id)} disabled={deleteId === entry.id}
@@ -599,19 +602,19 @@ export default function EntryLog() {
               </select>
             </div>
             <div className="text-xs text-gray-600">
-              Page {detailCurrentPage} of {sortedAndPaginatedDetail.totalPages || 1}
+              Page {sortedAndPaginatedDetail.currentPage} of {sortedAndPaginatedDetail.totalPages}
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => setDetailCurrentPage(p => Math.max(1, p - 1))}
-                disabled={detailCurrentPage === 1}
+                onClick={() => setDetailCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={sortedAndPaginatedDetail.currentPage <= 1}
                 className="px-3 py-1 border border-gray-300 rounded text-xs text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Previous
               </button>
               <button
-                onClick={() => setDetailCurrentPage(p => Math.min(sortedAndPaginatedDetail.totalPages || 1, p + 1))}
-                disabled={detailCurrentPage >= sortedAndPaginatedDetail.totalPages || sortedAndPaginatedDetail.totalPages === 0}
+                onClick={() => setDetailCurrentPage((p) => Math.min(sortedAndPaginatedDetail.totalPages, p + 1))}
+                disabled={sortedAndPaginatedDetail.currentPage >= sortedAndPaginatedDetail.totalPages}
                 className="px-3 py-1 border border-gray-300 rounded text-xs text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Next
@@ -626,28 +629,28 @@ export default function EntryLog() {
             <thead>
               <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSummarySort("department")}>
-                  Department {summarySortColumn === "department" && (summarySortDirection === "asc" ? "▲" : "▼")}
+                  Department{sortArrow(summarySortColumn === "department", summarySortDirection)}
                 </th>
                 <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSummarySort("role")}>
-                  Role {summarySortColumn === "role" && (summarySortDirection === "asc" ? "▲" : "▼")}
+                  Role{sortArrow(summarySortColumn === "role", summarySortDirection)}
                 </th>
                 <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSummarySort("category")}>
-                  Category {summarySortColumn === "category" && (summarySortDirection === "asc" ? "▲" : "▼")}
+                  Category{sortArrow(summarySortColumn === "category", summarySortDirection)}
                 </th>
                 <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSummarySort("taskName")}>
-                  Task {summarySortColumn === "taskName" && (summarySortDirection === "asc" ? "▲" : "▼")}
+                  Task{sortArrow(summarySortColumn === "taskName", summarySortDirection)}
                 </th>
                 <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleSummarySort("entryCount")}>
-                  Entries {summarySortColumn === "entryCount" && (summarySortDirection === "asc" ? "▲" : "▼")}
+                  Entries{sortArrow(summarySortColumn === "entryCount", summarySortDirection)}
                 </th>
                 <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleSummarySort("totalSeconds")}>
-                  Total Time {summarySortColumn === "totalSeconds" && (summarySortDirection === "asc" ? "▲" : "▼")}
+                  Total Time{sortArrow(summarySortColumn === "totalSeconds", summarySortDirection)}
                 </th>
                 <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleSummarySort("totalSeconds")}>
-                  Hours {summarySortColumn === "totalSeconds" && (summarySortDirection === "asc" ? "▲" : "▼")}
+                  Hours{sortArrow(summarySortColumn === "totalSeconds", summarySortDirection)}
                 </th>
                 <th className="px-4 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSummarySort("owners")}>
-                  Owners {summarySortColumn === "owners" && (summarySortDirection === "asc" ? "▲" : "▼")}
+                  Owners{sortArrow(summarySortColumn === "owners", summarySortDirection)}
                 </th>
               </tr>
             </thead>
@@ -661,7 +664,7 @@ export default function EntryLog() {
                   <td className="px-4 py-3 text-right text-gray-600">{row.entryCount}</td>
                   <td className="px-4 py-3 text-right font-mono text-green-700 font-semibold">{formatDuration(row.totalSeconds)}</td>
                   <td className="px-4 py-3 text-right text-gray-500 font-mono">{formatDurationDecimal(row.totalSeconds)}</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs max-w-xs truncate">{row.owners.join(", ")}</td>
+                  <td className="px-4 py-3 text-gray-500 text-xs max-w-xs whitespace-normal break-words">{row.owners.join(", ")}</td>
                 </tr>
               ))}
             </tbody>
@@ -696,19 +699,19 @@ export default function EntryLog() {
               </select>
             </div>
             <div className="text-xs text-gray-600">
-              Page {summaryCurrentPage} of {sortedAndPaginatedSummary.totalPages || 1}
+              Page {sortedAndPaginatedSummary.currentPage} of {sortedAndPaginatedSummary.totalPages}
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => setSummaryCurrentPage(p => Math.max(1, p - 1))}
-                disabled={summaryCurrentPage === 1}
+                onClick={() => setSummaryCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={sortedAndPaginatedSummary.currentPage <= 1}
                 className="px-3 py-1 border border-gray-300 rounded text-xs text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Previous
               </button>
               <button
-                onClick={() => setSummaryCurrentPage(p => Math.min(sortedAndPaginatedSummary.totalPages || 1, p + 1))}
-                disabled={summaryCurrentPage >= sortedAndPaginatedSummary.totalPages || sortedAndPaginatedSummary.totalPages === 0}
+                onClick={() => setSummaryCurrentPage((p) => Math.min(sortedAndPaginatedSummary.totalPages, p + 1))}
+                disabled={sortedAndPaginatedSummary.currentPage >= sortedAndPaginatedSummary.totalPages}
                 className="px-3 py-1 border border-gray-300 rounded text-xs text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Next
