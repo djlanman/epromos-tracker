@@ -425,7 +425,7 @@ export default function EntryLog() {
         /* ===== DETAIL VIEW ===== */
         <div className="rounded-xl border border-gray-200 bg-white">
           <div className="overflow-x-auto">
-            <table className="w-full text-xs" style={{ minWidth: "1400px" }}>
+            <table className="w-full text-xs table-auto" style={{ minWidth: "1600px" }}>
               <thead>
                 <tr className="bg-gray-50 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
                   <th className={thClass} style={{ minWidth: "140px" }} onClick={() => handleDetailSort("created_at")}>
